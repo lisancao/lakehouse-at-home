@@ -1,0 +1,222 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  # Stage 1: Basic validation
+  lint:
+    name: Lint & Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: poetry install --no-root
+
+      - name: Lint with Ruff
+        run: poetry run ruff check scripts/ --ignore E501
+
+      - name: Check Python formatting with Black
+        run: poetry run black --check scripts/
+
+      - name: Validate shell scripts
+        run: |
+          bash -n lakehouse
+          echo "Shell syntax OK"
+
+      - name: Validate docker-compose files
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose-spark41.yml config --quiet
+          docker compose -f docker-compose-kafka.yml config --quiet
+          echo "Docker Compose configs valid"
+
+  # Stage 2: Container startup
+  containers:
+    name: Container Startup
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create required directories
+        run: |
+          mkdir -p config/spark jars ivy-cache notebooks
+          sudo mkdir -p /data/spark
+          sudo chmod 777 /data/spark
+
+      - name: Create minimal spark-defaults.conf
+        run: |
+          cat > config/spark/spark-defaults.conf << 'EOF'
+          spark.master                     spark://localhost:7077
+          spark.executor.memory            1g
+          spark.driver.memory              1g
+          EOF
+
+      - name: Create .env file
+        run: |
+          cat > .env << 'EOF'
+          POSTGRES_USER=test
+          POSTGRES_PASSWORD=test
+          POSTGRES_HOST=localhost
+          POSTGRES_PORT=5432
+          EOF
+
+      - name: Start Spark 4.0 containers
+        run: |
+          docker compose -f docker-compose.yml up -d spark-master spark-worker
+          sleep 15
+
+      - name: Verify Spark 4.0 containers
+        run: |
+          docker ps
+          docker logs spark-master 2>&1 | tail -20
+          nc -z localhost 7077 && echo "Spark 4.0 master: OK" || exit 1
+          nc -z localhost 8080 && echo "Spark 4.0 UI: OK" || exit 1
+
+      - name: Stop Spark 4.0, Start Spark 4.1
+        run: |
+          docker compose -f docker-compose.yml down
+          docker compose -f docker-compose-spark41.yml up -d
+          sleep 15
+
+      - name: Verify Spark 4.1 containers
+        run: |
+          docker ps
+          docker logs spark-master-41 2>&1 | tail -20
+          nc -z localhost 7078 && echo "Spark 4.1 master: OK" || exit 1
+          nc -z localhost 8082 && echo "Spark 4.1 UI: OK" || exit 1
+
+      - name: Start Kafka containers
+        run: |
+          docker compose -f docker-compose-kafka.yml up -d
+          sleep 10
+
+      - name: Verify Kafka containers
+        run: |
+          docker ps
+          nc -z localhost 9092 && echo "Kafka: OK" || exit 1
+          nc -z localhost 2181 && echo "Zookeeper: OK" || exit 1
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose-spark41.yml down || true
+          docker compose -f docker-compose-kafka.yml down || true
+
+  # Stage 3: Full integration tests
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: containers
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: iceberg
+          POSTGRES_PASSWORD: iceberg
+          POSTGRES_DB: iceberg_catalog
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create required directories
+        run: |
+          mkdir -p config/spark jars ivy-cache notebooks
+          sudo mkdir -p /data/spark
+          sudo chmod 777 /data/spark
+
+      - name: Create spark-defaults.conf for integration
+        run: |
+          cat > config/spark/spark-defaults.conf << 'EOF'
+          spark.master                     spark://localhost:7078
+          spark.executor.memory            1g
+          spark.driver.memory              1g
+          spark.sql.catalog.iceberg        org.apache.iceberg.spark.SparkCatalog
+          spark.sql.catalog.iceberg.type   jdbc
+          spark.sql.catalog.iceberg.uri    jdbc:postgresql://localhost:5432/iceberg_catalog
+          spark.sql.catalog.iceberg.jdbc.user      iceberg
+          spark.sql.catalog.iceberg.jdbc.password  iceberg
+          EOF
+
+      - name: Create .env file
+        run: |
+          cat > .env << 'EOF'
+          POSTGRES_USER=iceberg
+          POSTGRES_PASSWORD=iceberg
+          POSTGRES_HOST=localhost
+          POSTGRES_PORT=5432
+          EOF
+
+      - name: Download required JARs
+        run: |
+          mkdir -p jars
+          # Download minimal JARs for testing
+          curl -L -o jars/postgresql-42.7.4.jar \
+            https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar
+
+      - name: Start Spark 4.1
+        run: |
+          docker compose -f docker-compose-spark41.yml up -d
+          sleep 20
+          docker logs spark-master-41 2>&1 | tail -30
+
+      - name: Verify Spark master
+        run: |
+          nc -z localhost 7078 && echo "Spark master: OK" || exit 1
+
+      - name: Start Kafka
+        run: |
+          docker compose -f docker-compose-kafka.yml up -d
+          sleep 15
+
+      - name: Verify Kafka
+        run: |
+          docker exec kafka kafka-topics.sh --list --bootstrap-server localhost:9092 || true
+          nc -z localhost 9092 && echo "Kafka: OK" || exit 1
+
+      - name: Create Kafka test topic
+        run: |
+          docker exec kafka kafka-topics.sh \
+            --create --topic test-events \
+            --bootstrap-server localhost:9092 \
+            --partitions 1 --replication-factor 1 || true
+
+      - name: Test Spark job submission
+        run: |
+          docker exec spark-master-41 /opt/spark/bin/spark-submit \
+            --master spark://localhost:7078 \
+            --class org.apache.spark.examples.SparkPi \
+            /opt/spark/examples/jars/spark-examples_2.13-4.1.0.jar 10
+        timeout-minutes: 5
+
+      - name: Test PostgreSQL connectivity
+        run: |
+          PGPASSWORD=iceberg psql -h localhost -U iceberg -d iceberg_catalog -c "SELECT 1;"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose-spark41.yml down || true
+          docker compose -f docker-compose-kafka.yml down || true

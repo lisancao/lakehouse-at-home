@@ -3,35 +3,39 @@ services:
     image: apache/spark:4.1.0-scala2.13-java21-python3-r-ubuntu
     container_name: spark-master-41
     network_mode: "host"
-    env_file: .env 
+    env_file: .env
+    environment:
+      - SPARK_MASTER_PORT=7078
+      - SPARK_MASTER_WEBUI_PORT=8082
     volumes:
       - /data/spark:/opt/spark-data
-      - ./config/spark:/opt/spark/conf 
-      - ./notebooks:/notebooks 
+      - ./config/spark:/opt/spark/conf
+      - ./notebooks:/notebooks
       - ./jars:/opt/spark/jars-extra
       - ./scripts:/scripts
       - ./ivy-cache:/root/.ivy2
     command: >
       bash -c "
-        /opt/spark/sbin/start-master.sh && 
-        tail -f /opt/spark/logs/* 
+        /opt/spark/sbin/start-master.sh --host 0.0.0.0 --port 7078 --webui-port 8082 &&
+        tail -f /opt/spark/logs/*
         "
-
 
   spark-worker-41:
     image: apache/spark:4.1.0-scala2.13-java21-python3-r-ubuntu
     container_name: spark-worker-41
-    env_file: .env 
+    env_file: .env
     network_mode: "host"
-    volumes: 
+    environment:
+      - SPARK_WORKER_WEBUI_PORT=8083
+    volumes:
       - /data/spark:/opt/spark-data
-      - ./config/spark:/opt/spark/conf 
-      - ./notebooks:/notebooks 
+      - ./config/spark:/opt/spark/conf
+      - ./notebooks:/notebooks
       - ./jars:/opt/spark/jars-extra
-      - ./scripts:/scripts 
+      - ./scripts:/scripts
     command: >
       bash -c "
-        sleep 5 && 
-        /opt/spark/sbin/start-worker.sh spark://localhost:7077 &&
+        sleep 5 &&
+        /opt/spark/sbin/start-worker.sh spark://localhost:7078 --webui-port 8083 &&
         tail -f /opt/spark/logs/*
         "
