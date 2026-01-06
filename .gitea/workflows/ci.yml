@@ -42,6 +42,8 @@ jobs:
 
       - name: Validate docker-compose files
         run: |
+          # Create minimal .env for validation
+          touch .env
           docker compose -f docker-compose.yml config --quiet
           docker compose -f docker-compose-spark41.yml config --quiet
           docker compose -f docker-compose-kafka.yml config --quiet
