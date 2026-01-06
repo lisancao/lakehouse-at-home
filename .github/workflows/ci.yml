@@ -99,8 +99,8 @@ jobs:
           docker compose -f docker-compose-kafka.yml up -d
           sleep 15
           docker ps
-          # Kafka uses bridge networking, should work in CI
-          docker exec kafka kafka-topics.sh --list --bootstrap-server localhost:9092 || true
+          # Bitnami Kafka uses /opt/bitnami/kafka/bin/
+          docker exec kafka /opt/bitnami/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092 || true
           echo "Kafka containers: OK"
 
       - name: Cleanup
@@ -151,11 +151,12 @@ jobs:
         run: |
           docker compose -f docker-compose-kafka.yml up -d
           sleep 15
-          docker exec kafka kafka-topics.sh \
+          # Bitnami Kafka uses /opt/bitnami/kafka/bin/
+          docker exec kafka /opt/bitnami/kafka/bin/kafka-topics.sh \
             --create --topic test-events \
             --bootstrap-server localhost:9092 \
             --partitions 1 --replication-factor 1 || true
-          docker exec kafka kafka-topics.sh --list --bootstrap-server localhost:9092
+          docker exec kafka /opt/bitnami/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
           echo "Kafka topic creation: OK"
 
       - name: Cleanup
