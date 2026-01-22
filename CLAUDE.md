@@ -11,11 +11,13 @@ Self-hostable data lakehouse: Spark 4.x + Iceberg 1.10 + Kafka 3.6 + PostgreSQL 
 | `docs/getting-started/` | Installation, quickstart, configuration |
 | `docs/guides/` | CLI reference, streaming, test data, multi-version Spark |
 | `docs/guides/unity-catalog.md` | Unity Catalog OSS setup and migration |
+| `docs/guides/pipelines.md` | Data pipelines (imperative vs declarative) |
 | `docs/deployment/` | Local and AWS deployment |
 | `docs/architecture.md` | System design |
 | `docs/troubleshooting.md` | Common issues |
 | `docs/DEV_WORKFLOW.md` | Branch state and integration plan for agents |
 | `SECURITY.md` | Security guidelines for contributors |
+| `.claude/skills/` | AI assistant skill files (see below) |
 
 ## Quick Commands
 
@@ -204,3 +206,16 @@ See `docs/DEV_WORKFLOW.md` for:
 - Integration plan and phase status
 - Commands for branch analysis
 - Guidelines for feature work
+
+## AI Skills Reference
+
+The `.claude/skills/` directory contains detailed reference guides for AI assistants:
+
+| Skill File | Topic |
+|------------|-------|
+| `SDP.md` | Spark Declarative Pipelines - complete reference from basics to production |
+
+**When to use skills files:**
+- When writing Spark pipelines, read `.claude/skills/SDP.md` first
+- Skills files contain patterns, common errors, and lakehouse-specific examples
+- They are tested with AI assistants to ensure clarity and completeness
