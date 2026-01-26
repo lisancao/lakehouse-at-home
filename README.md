@@ -149,18 +149,18 @@ See [Test Data Guide](docs/guides/test-data.md) for details.
 │                      │    │                                                       │
 │  Zookeeper (:2181)   │    │  Spark 4.0 (:7077, UI :8080)                         │
 │                      │    │  Spark 4.1 (:7078, UI :8082)                         │
-│  (direct to Spark,   │    └──────────────────────────┬────────────────────────────┘
-│   not via catalog)   │                               │
-└──────────────────────┘                               │ Iceberg API
-                                                       │
-┌──────────────────────┐                               │
-│  ORCHESTRATION       │                               │
-│                      │───────────────────────────────┤
-│  Airflow (:8085)     │  Schedules Spark jobs,        │
-│  └─ DAGs             │  Iceberg maintenance          │
-│  └─ Sensors          │                               │
-└──────────────────────┘                               │
-                                                       ▼
+│  (direct to Spark,   │    └───────────────────────────────────────────┬──────────┘
+│   not via catalog)   │                        ▲                       │
+└──────────────────────┘                        │                       │ Iceberg API
+                                                │ docker exec           │
+┌──────────────────────┐                        │ spark-submit          │
+│  ORCHESTRATION       │────────────────────────┘                       │
+│                      │                                                │
+│  Airflow (:8085)     │  (Airflow schedules Spark jobs;                │
+│  └─ DAGs             │   Spark talks to Iceberg)                      │
+│  └─ Sensors          │                                                │
+└──────────────────────┘                                                │
+                                                                        ▼
                             ┌───────────────────────────────────────────────────────┐
                             │                 CATALOG: Iceberg Metadata             │
                             │                                                       │
@@ -186,8 +186,9 @@ See [Test Data Guide](docs/guides/test-data.md) for details.
 **How It Works:**
 1. **Streaming** → Kafka feeds events directly to Spark (not via catalog)
 2. **Compute** → Spark transforms data through Bronze → Silver → Gold layers
-3. **Catalog** → PostgreSQL or Unity Catalog manages Iceberg table metadata
-4. **Storage** → SeaweedFS stores Parquet files accessed via Iceberg
+3. **Orchestration** → Airflow schedules Spark jobs via `docker exec spark-submit`
+4. **Catalog** → PostgreSQL or Unity Catalog manages Iceberg table metadata
+5. **Storage** → SeaweedFS stores Parquet files accessed via Iceberg
 
 **Catalog Options:**
 | Feature | PostgreSQL JDBC | Unity Catalog |

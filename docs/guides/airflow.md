@@ -16,18 +16,24 @@ This setup uses **Airflow 3.1.6** with Python 3.12. See [Airflow 3.x Notes](#air
 │  └─────────────┘  └─────────────┘  └─────────────────────┘   │
 └──────────────────────────────────────────────────────────────┘
          │                   │                    │
+         │ docker exec       │ Kafka sensors      │ Airflow DB
+         │ spark-submit      │ (wait for data)    │ (task state)
          ▼                   ▼                    ▼
 ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
 │    Spark    │      │    Kafka    │      │  PostgreSQL │
-│  4.0 / 4.1  │      │   Sensors   │      │  (metadata) │
+│  4.0 / 4.1  │      │   Broker    │      │ (Airflow's) │
 └─────────────┘      └─────────────┘      └─────────────┘
          │
+         │ Spark talks to
+         │ Iceberg catalog
          ▼
 ┌─────────────────────────────────────────┐
 │              Iceberg Tables             │
 │  bronze.* → silver.* → gold.*           │
 └─────────────────────────────────────────┘
 ```
+
+**Key point**: Airflow orchestrates Spark jobs via `docker exec spark-submit`. Airflow does not talk directly to Iceberg - Spark handles all Iceberg operations.
 
 ## Quick Start
 
