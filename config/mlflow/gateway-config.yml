@@ -1,0 +1,54 @@
+# MLflow AI Gateway Configuration
+# =================================
+# Routes LLM traffic through a unified gateway.
+# Primary: Anthropic (Claude). Fallback: Ollama (local OSS model).
+#
+# This config is loaded by MLflow server when MLFLOW_GATEWAY_CONFIG is set.
+# Hot-reloadable — changes take effect without restart.
+
+endpoints:
+  # ─── Primary: Anthropic Claude ─────────────────────────────
+  - name: chat
+    endpoint_type: llm/v1/chat
+    model:
+      provider: anthropic
+      name: claude-sonnet-4-5-20250514
+      config:
+        anthropic_api_key: ${ANTHROPIC_API_KEY}
+
+  # ─── Fallback: Ollama (local OSS model) ────────────────────
+  - name: chat-local
+    endpoint_type: llm/v1/chat
+    model:
+      provider: openai
+      name: qwen2.5:14b
+      config:
+        openai_api_base: http://localhost:11434/v1
+        openai_api_key: "ollama"
+
+  # ─── Completions (for non-chat use cases) ──────────────────
+  - name: completions
+    endpoint_type: llm/v1/completions
+    model:
+      provider: anthropic
+      name: claude-sonnet-4-5-20250514
+      config:
+        anthropic_api_key: ${ANTHROPIC_API_KEY}
+
+  # ─── Embeddings (optional, for RAG) ────────────────────────
+  # - name: embeddings
+  #   endpoint_type: llm/v1/embeddings
+  #   model:
+  #     provider: openai
+  #     name: text-embedding-3-small
+  #     config:
+  #       openai_api_key: ${OPENAI_API_KEY}
+
+# Rate limiting (per endpoint)
+# rate_limits:
+#   - endpoint: chat
+#     calls: 100
+#     renewal_period: minute
+#   - endpoint: chat-local
+#     calls: 50
+#     renewal_period: minute
