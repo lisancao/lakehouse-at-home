@@ -195,9 +195,21 @@ def act2_credential_vending():
     print("""
   Nick asks: "How do we control who accesses the raw files?"
 
-  Unity Catalog credential vending (since v0.2):
+  Unity Catalog credential vending (overhauled in v0.4.0):
+
+  NEW in 0.4.0 — two-layer credential model:
+    1. Storage Credentials: define HOW to access storage (IAM role, keys)
+       POST /api/2.1/unity-catalog/credentials
+       {"name": "seaweedfs-creds", "aws_iam_role": {...}}
+
+    2. External Locations: define WHERE storage is + bind to credentials
+       POST /api/2.1/unity-catalog/external-locations
+       {"name": "lakehouse-data", "url": "s3://lakehouse/warehouse",
+        "credential_name": "seaweedfs-creds"}
+
+  The flow:
     - Client requests access to a table
-    - UC validates the request
+    - UC validates via external location matching
     - UC returns short-lived, scoped storage credentials
     - Client uses those credentials to read/write data
     - Credentials expire — no permanent keys floating around
@@ -212,6 +224,7 @@ def act2_credential_vending():
     - UC vends S3-compatible credentials for SeaweedFS
     - Same protocol as AWS S3, Azure ADLS, or GCS
     - Credential rotation is automatic
+    - AWS IAM role support added in 0.4.0
     """)
 
     # Show the Iceberg REST catalog endpoint
@@ -264,19 +277,30 @@ def act2_catalog_managed_commits():
     print("""
   Nick asks: "What if Spark and DuckDB write at the same time?"
 
-  Catalog-managed commits (new in UC 0.3.x, experimental):
+  Catalog-managed commits (flagship feature in UC 0.4.0):
     - UC server centrally coordinates table commits
     - Multiple engines can safely write to the same table
     - No commit conflicts — UC is the single authority
     - Enabled via: server.managed-table.enabled=true
+
+  The protocol (Delta tables):
+    1. Client calls POST /staging-tables (UC assigns storage path)
+    2. Client writes data + delta log
+    3. Client calls POST /tables to finalize
+    4. Subsequent writes: staged commits → POST /delta/preview/commits to ratify
+    5. Reads combine published + ratified commits
 
   For Iceberg tables via REST Catalog:
     - The REST catalog protocol inherently coordinates commits
     - The catalog server IS the commit authority
     - This is baked into the Iceberg REST spec — not a UC-specific hack
 
-  Status: EXPERIMENTAL. Works for basic cases.
-  Production multi-writer scenarios: test thoroughly.
+  UniForm (NEW in 0.4.0):
+    - Delta commits can atomically update Iceberg metadata
+    - Write as Delta, read as Iceberg — transparent to downstream engines
+
+  Status: Production-ready for Delta. Iceberg REST reads solid.
+  Multi-writer scenarios: test thoroughly.
     """)
 
 
@@ -287,32 +311,37 @@ def act2_honest_gaps():
     print("""
   Holly asks: "So this is just like Databricks Unity Catalog?"
 
-  No. Here's what OSS UC 0.3.1 gives you:
+  No. Here's what OSS UC 0.4.0 gives you:
     [x] Iceberg REST Catalog (strong, production-ready)
-    [x] Credential vending (since v0.2)
+    [x] Credential vending via external locations (overhauled in 0.4.0)
+    [x] Storage credentials API with IAM role support
     [x] Multi-engine interop (Spark, DuckDB, Trino, etc.)
-    [x] Catalog-managed commits (experimental)
-    [x] Schema/table management
-    [x] Basic access control
+    [x] Catalog-managed commits (Delta — flagship 0.4.0 feature)
+    [x] Managed storage locations for catalogs/schemas
+    [x] UniForm (Delta-to-Iceberg atomic metadata)
+    [x] Authorization framework (OAuth + grants)
+    [x] Schema/table/volume management
+    [x] Model registry (MLflow integration)
+    [x] Helm charts for K8s deployment
 
-  Here's what it does NOT have (roadmapped, not shipped):
-    [ ] Full RBAC with GRANT/REVOKE (planned for v0.5)
-    [ ] Row-level / column-level security
+  Here's what it does NOT have (roadmapped for v0.5+):
+    [ ] Full RBAC with row-level filters / column masks
     [ ] Audit logging
     [ ] Data lineage
     [ ] Delta Sharing
     [ ] Lakehouse Federation
-    [ ] Proactive data classification
-    [ ] Multi-workspace management
+    [ ] Group management / service principals
+    [ ] Native Iceberg writes (only Delta-via-UniForm)
+    [ ] Multi-tenancy
 
   The honest take:
-    UC OSS is a CATALOG + CREDENTIAL VENDING + INTEROP layer.
-    It is NOT a governance platform (yet).
-    For full governance, you need vertical integration that a
-    standalone OSS project can't realistically provide.
+    UC OSS 0.4.0 is a real catalog with credential vending,
+    managed commits, and multi-engine interop. It's come a
+    long way from 0.1. But full governance (RBAC, audit,
+    lineage) is still in the future.
 
   That's not a failure — that's the reality of open source vs managed.
-  You get the foundation. The rest is yours to build or buy.
+  You get a solid foundation. The rest is yours to build or buy.
     """)
 
 

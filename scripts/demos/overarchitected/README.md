@@ -32,7 +32,7 @@ pip install mlflow>=3.1 anthropic openai
 | Act | Script | Title | Time | Key Tech |
 |-----|--------|-------|------|----------|
 | 1 | `01_data_smuggled.py` | "We Have Data" | ~3 min | OTF portability, parquet, Iceberg |
-| 2 | `02_unity_catalog_setup.py` | "We Need a Catalog" | ~10 min | UC 0.3.1, REST catalog, credential vending |
+| 2 | `02_unity_catalog_setup.py` | "We Need a Catalog" | ~10 min | UC 0.4.0, REST catalog, credential vending |
 | 3 | `03_spark_setup.py` | "We Need Compute" | ~10 min | Spark 4.1 config, VARIANT, CTE, Collation, Connect |
 | 4a | `04a_sdp_showcase.py` | "We Need Pipelines — SDP" | ~8 min | Declarative pipelines, 3-act structure |
 | 4b | `04b_rtm_streaming.py` | "We Need Pipelines — RTM" | ~5 min | Real-Time Mode, micro-batch vs RTM |
