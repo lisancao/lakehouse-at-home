@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.15"/>
+    </filter>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#E25A1C"/>
+    </marker>
+    <marker id="arrowGray" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#718096"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#3182CE"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#E53E3E"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#38A169"/>
+    </marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#805AD5"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="675" fill="#FFFFFF"/>
+
+  <!-- Title -->
+  <text x="600" y="38" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="26" font-weight="bold" fill="#1A202C">OverArchitected Show &#8212; 6-Act Flow</text>
+  <text x="600" y="62" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="15" fill="#4A5568">We Quit Databricks and Rebuilt It From Scratch</text>
+
+  <!-- Row 1: Acts 1, 2, 3 -->
+  <!-- Act 1 -->
+  <rect x="40" y="85" width="350" height="200" rx="8" fill="#F7FAFC" stroke="#718096" stroke-width="2" filter="url(#shadow)"/>
+  <text x="215" y="115" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="36" font-weight="bold" fill="#718096">1</text>
+  <text x="215" y="145" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="14" font-weight="600" fill="#1A202C">The Data Got Smuggled Out</text>
+  <text x="215" y="162" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#718096">~5 min</text>
+  <text x="215" y="182" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#4A5568">Open Table Formats, Iceberg, Parquet</text>
+  <text x="215" y="198" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" fill="#718096">Data portability &#8212; it's just files</text>
+
+  <!-- Act 2 -->
+  <rect x="425" y="85" width="350" height="200" rx="8" fill="#EBF8FF" stroke="#3182CE" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="115" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="36" font-weight="bold" fill="#3182CE">2</text>
+  <text x="600" y="145" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="14" font-weight="600" fill="#1A202C">We Need a Catalog</text>
+  <text x="600" y="162" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#3182CE">~10 min</text>
+  <text x="600" y="182" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#4A5568">Unity Catalog OSS 0.4.0</text>
+  <text x="600" y="198" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" fill="#2C5282">REST catalog, credential vending, catalog-managed commits</text>
+
+  <!-- Act 3 -->
+  <rect x="810" y="85" width="350" height="200" rx="8" fill="#FFF5F0" stroke="#E25A1C" stroke-width="2" filter="url(#shadow)"/>
+  <text x="985" y="115" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="36" font-weight="bold" fill="#E25A1C">3</text>
+  <text x="985" y="145" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="14" font-weight="600" fill="#1A202C">We Need Compute</text>
+  <text x="985" y="162" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#E25A1C">~10 min</text>
+  <text x="985" y="182" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#4A5568">Spark 4.1, VARIANT, CTE, Collation</text>
+  <text x="985" y="198" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" fill="#C05621">The engine that runs everything</text>
+
+  <!-- Arrows Row 1: 1 to 2 to 3 -->
+  <path d="M 390 185 L 425 185" stroke="#718096" stroke-width="2" fill="none" marker-end="url(#arrowGray)"/>
+  <path d="M 775 185 L 810 185" stroke="#3182CE" stroke-width="2" fill="none" marker-end="url(#arrowBlue)"/>
+
+  <!-- Row 2: Acts 4, 5, 6 -->
+  <!-- Act 4 - HEADLINERS -->
+  <rect x="40" y="320" width="350" height="200" rx="8" fill="#FFF5F5" stroke="#E53E3E" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="40" y="320" width="350" height="28" rx="8" fill="#E53E3E"/>
+  <text x="215" y="339" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" font-weight="bold" fill="#FFFFFF">&#9733; HEADLINERS</text>
+  <text x="215" y="365" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="36" font-weight="bold" fill="#E53E3E">4</text>
+  <text x="215" y="395" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="14" font-weight="600" fill="#1A202C">We Need Pipelines</text>
+  <text x="215" y="412" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#E53E3E">~13 min (4a/4b)</text>
+  <text x="215" y="432" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#4A5568">SDP + Real-Time Mode</text>
+  <text x="215" y="448" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" fill="#C53030">Declarative pipelines + sub-second streaming</text>
+
+  <!-- Act 5 -->
+  <rect x="425" y="320" width="350" height="200" rx="8" fill="#F0FFF4" stroke="#38A169" stroke-width="2" filter="url(#shadow)"/>
+  <text x="600" y="365" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="36" font-weight="bold" fill="#38A169">5</text>
+  <text x="600" y="395" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="14" font-weight="600" fill="#1A202C">We Need to Scale</text>
+  <text x="600" y="412" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#38A169">~13 min (5a/5b/5c)</text>
+  <text x="600" y="432" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#4A5568">Airflow + Connect + K8s</text>
+  <text x="600" y="448" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" fill="#276749">Four dimensions of scaling</text>
+
+  <!-- Act 6 -->
+  <rect x="810" y="320" width="350" height="200" rx="8" fill="#FAF5FF" stroke="#805AD5" stroke-width="2" filter="url(#shadow)"/>
+  <text x="985" y="365" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="36" font-weight="bold" fill="#805AD5">6</text>
+  <text x="985" y="395" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="14" font-weight="600" fill="#1A202C">We're Lazy &#8212; Agents</text>
+  <text x="985" y="412" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#805AD5">~15 min (6a/6b/6c)</text>
+  <text x="985" y="432" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#4A5568">MLflow Guardian, Analyst, Autopilot</text>
+  <text x="985" y="448" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" fill="#553C9A">AI agents that maintain the lakehouse</text>
+
+  <!-- Arrows Row 2: 4 to 5 to 6 -->
+  <path d="M 390 420 L 425 420" stroke="#E53E3E" stroke-width="2" fill="none" marker-end="url(#arrowRed)"/>
+  <path d="M 775 420 L 810 420" stroke="#38A169" stroke-width="2" fill="none" marker-end="url(#arrowGreen)"/>
+
+  <!-- Arrow from Row 1 to Row 2: 3 to 4 -->
+  <path d="M 985 285 L 985 305 L 215 305 L 215 320" stroke="#E25A1C" stroke-width="2" fill="none" marker-end="url(#arrowOrange)"/>
+  <text x="600" y="298" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="9" fill="#E25A1C">flow</text>
+
+  <!-- Timeline bar -->
+  <rect x="40" y="555" width="1120" height="40" rx="8" fill="#F7FAFC" stroke="#E2E8F0" stroke-width="1" filter="url(#shadow)"/>
+  <text x="600" y="578" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" font-weight="600" fill="#4A5568">Total ~66 min</text>
+  
+  <!-- Timeline segments (proportional) -->
+  <rect x="40" y="555" width="85" height="40" rx="8" fill="#718096" fill-opacity="0.15"/>
+  <rect x="125" y="555" width="170" height="40" rx="0" fill="#3182CE" fill-opacity="0.15"/>
+  <rect x="295" y="555" width="170" height="40" rx="0" fill="#E25A1C" fill-opacity="0.15"/>
+  <rect x="465" y="555" width="221" height="40" rx="0" fill="#E53E3E" fill-opacity="0.15"/>
+  <rect x="686" y="555" width="221" height="40" rx="0" fill="#38A169" fill-opacity="0.15"/>
+  <rect x="907" y="555" width="253" height="40" rx="0" fill="#805AD5" fill-opacity="0.15"/>
+  
+  <!-- Timeline labels -->
+  <text x="82" y="578" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="9" fill="#4A5568">5m</text>
+  <text x="210" y="578" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="9" fill="#4A5568">10m</text>
+  <text x="380" y="578" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="9" fill="#4A5568">10m</text>
+  <text x="575" y="578" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="9" fill="#4A5568">13m</text>
+  <text x="796" y="578" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="9" fill="#4A5568">13m</text>
+  <text x="1033" y="578" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="9" fill="#4A5568">15m</text>
+</svg>

@@ -11,50 +11,69 @@
 
 ### Format
 - **Hosted by:** Nick Karpov and Holly Smith, Staff Developer Advocates at Databricks
-- **Style:** Monthly YouTube show covering Databricks product updates. They take the latest features and intentionally attempt to integrate ALL of them into a single architecture — in "over-engineered" ways for both humor and education
-- **Tone:** Technical comedy. Part live coding, part improv. They explain features while demonstrating absurdly complex architectures that use everything at once
-- **Cadence:** Monthly episodes (Feb 2025, March 2025, etc.) + live recording at Data+AI Summit
+- **Style:** Monthly YouTube show. They take the latest features and intentionally integrate ALL of them into a single architecture — over-engineered for both humor and education
+- **Tone:** Technical comedy. Part live coding, part improv. They explain features while building absurdly complex architectures that use everything at once
 - **Audience:** Databricks practitioners, data engineers, platform engineers. Mix of beginners and senior folks who appreciate the humor
 
-### What Makes This Show Different
-1. **Not a tutorial.** It's a "what happens when you use EVERY feature at once" show
-2. **Improv energy.** Hosts riff off each other. Expect them to say "okay but what if we ALSO add X?"
-3. **Practical foundation.** Despite the humor, they genuinely demonstrate how features work
-4. **Intentional over-engineering.** The point is to push things to the limit, then laugh about it
+### This Episode's Premise
+> Holly and Nick quit Databricks. They smuggled out their data in Open Table Formats. Now they want to rebuild the entire platform from scratch — for free, using open source.
 
-### What They'll Probably Do With You
-- Introduce you and lakehouse-at-home as the "open source foundation" they're building on
-- Walk through your stack, then start adding Spark 4.1 features one by one
-- Keep escalating: "okay we have Iceberg, but what about VARIANT? And streaming? And recursive CTEs?"
-- The punchline is always "we built something absurd but it actually works"
+Your repo is the canvas. Each act adds a layer. By the end, you've rebuilt Databricks with open source.
+
+---
+
+## THE NARRATIVE — 6 Acts
+
+The show follows a story arc. Each act builds on the last.
+
+| Act | Title | What You're Proving | Key Tech |
+|-----|-------|---------------------|----------|
+| **1** | "We Have Data" | OTF data is portable — no vendor lock-in | Parquet, Iceberg |
+| **2** | "We Need a Catalog" | Stand up governance from scratch | Unity Catalog OSS 0.4.0, credential vending |
+| **3** | "We Need Compute" | Spark 4.1 is loaded with new features | VARIANT, Recursive CTEs, Collation |
+| **4a/b** | "We Need Pipelines" | Declarative pipelines + real-time streaming | **SDP**, **RTM** |
+| **5a/b/c** | "We Need to Scale" | SDP orchestrated, thin client, K8s-ready | **Airflow+SDP**, **Spark Connect**, K8s |
+| **6a/b/c** | "We're Lazy" | Let AI manage the lakehouse | **MLflow agents** — Guardian, Analyst, Autopilot |
+
+### The Scaling Story (Acts 4 → 5)
+Four components, each scaling a different dimension:
+- **SDP** scales your *pipeline logic*: declarative, auto-dependency, no manual execution order. 1 table to 100 without changing how you run things.
+- **Airflow** scales your *orchestration*: schedule SDP, preflight checks, verification, Iceberg maintenance. Airflow is the glue — it orchestrates pipelines, streaming jobs, agent runs, everything.
+- **Spark Connect** scales your *access*: thin gRPC client, no JVM on the client side. Multiple remote users, one cluster.
+- **K8s** scales your *infrastructure*: same spark-submit, same pipeline code, `--master k8s://`. Docker Compose for dev, Kubernetes for prod.
+
+Together: declarative pipelines, orchestrated by Airflow, accessible via Connect, deployed on K8s. That's the full production story.
 
 ---
 
 ## YOUR ANGLE — Why You're the Right Guest
 
 ### Your Unique Value
-1. **You built a fully open-source lakehouse that runs on a laptop.** That's the ultimate "overarchitected home lab" — production-grade infra on Docker Compose
-2. **Dual Spark versions (4.0 + 4.1).** You can show the before/after of every Spark 4.1 feature
-3. **Real medallion architecture.** Bronze → Silver → Gold with Iceberg — not a toy
-4. **Streaming + batch unified.** Kafka → Spark → Iceberg, same tables
-5. **You're a Databricks SA who builds open source.** Bridge between managed platform and OSS community
+1. **Built a production-grade lakehouse that runs on a laptop.** Docker Compose, no cloud account.
+2. **Dual Spark versions (4.0 + 4.1).** Before/after for every feature.
+3. **Full open-source stack.** Spark, Iceberg, Kafka, Airflow, Unity Catalog, MLflow — all OSS.
+4. **Real pipelines, real data.** Medallion architecture with 90 days of ghost kitchen delivery data.
+5. **Databricks SA who builds open source.** Bridge between managed platform and OSS community.
 
 ### Your Opening Pitch (30 seconds)
-> "I built lakehouse-at-home because I wanted to learn data engineering with real tools, not toy examples. It's Spark 4.x, Iceberg, Kafka, Airflow — all running on Docker Compose on my laptop. And the thing I'm most excited about is Spark Declarative Pipelines — it's DLT for everyone, open source, and it completely changes how you build data pipelines. Today we're going to overarchitect the hell out of it."
+> "I built lakehouse-at-home because I wanted real tools, not toy examples. Spark 4.x, Iceberg, Kafka, Airflow, Unity Catalog, MLflow — all running on Docker Compose. Today we're going to see how far open source takes us in rebuilding the whole Databricks platform. Spoiler: pretty far."
 
 ---
 
 ## THE STACK — Know It Cold
 
-| Component | Version | What It Does | Port |
-|-----------|---------|-------------|------|
+| Component | Version | Purpose | Port |
+|-----------|---------|---------|------|
 | Apache Spark | 4.0 / 4.1 | Compute engine | 7077/7078 |
 | Apache Iceberg | 1.10 | ACID table format | via catalog |
 | Apache Kafka | 3.6 | Event streaming | 9092 |
 | Apache Airflow | 3.1 | Workflow orchestration | 8085 |
-| PostgreSQL | 16 | Catalog metadata | 5432 |
+| PostgreSQL | 16 | Catalog + MLflow metadata | 5432 |
 | SeaweedFS | — | S3-compatible storage | 8333 |
-| Unity Catalog OSS | 0.3.1 | REST catalog (optional) | 8081 |
+| Unity Catalog OSS | 0.4.0 | REST catalog, credential vending, catalog-managed commits | 8080 |
+| MLflow | 3.1 | Tracking, AI Gateway, agent serving | 5000 |
+| Spark Connect | (4.1) | Thin gRPC client | 15002 |
+| Ollama | (optional) | Local LLM fallback for agents | 11434 |
 
 ### Data Domain: Ghost Kitchen Food Delivery
 - **Orders** flow through 7 lifecycle events: order_created → kitchen_started → kitchen_finished → order_ready → driver_arrived → driver_picked_up → delivered
@@ -63,234 +82,184 @@
 
 ---
 
-## SPARK 4.1 FEATURES — Your Arsenal
+## FEATURE HIGHLIGHTS — By Act
 
-Ranked by "show value" — lead with the ones that get the biggest reaction:
+### Act 1-2: Foundation (Data + Catalog)
+- OTF portability: parquet and Iceberg work anywhere, no vendor needed
+- Unity Catalog 0.4.0: catalog-managed commits, credential vending, multi-engine access (DuckDB, Trino, Polars)
 
-### THE HEADLINER: Spark Declarative Pipelines (SDP)
-| | |
-|---|---|
-| **What** | `from pyspark import pipelines as dp` with `@dp.materialized_view` and `@dp.table` |
-| **One-liner** | "Define WHAT each table contains. Spark figures out WHEN and HOW to run." |
-| **Audience reaction** | "It's like dbt but native to Spark — and it handles streaming too" |
-| **Your killer demo** | Side-by-side before/after, then add a new gold table live with zero execution logic changes |
-| **Key talking points** | Auto-dependency resolution from `spark.table()` calls. No `.write()`. Unified batch+streaming. `dry-run` validates before execution. |
-| **Databricks connection** | "This is DLT for everyone — open source, runs anywhere, no vendor lock-in" |
+### Act 3: Spark 4.1 Compute Features
+| Feature | One-Liner | Demo Line |
+|---------|-----------|-----------|
+| **VARIANT** | `parse_json(body)` + `variant_get()` — no fixed schema | "Nobody's JSON is consistent. VARIANT means you stop pretending it is." |
+| **Recursive CTEs** | `WITH RECURSIVE` for event chain traversal | "Graph queries in Spark. Walk order lifecycle as a chain." |
+| **Collation** | `COLLATE utf8_lcase` for case-insensitive matching | "One keyword. Locale-aware. Done." |
 
-### CO-HEADLINER: Real-Time Mode (RTM)
+### Act 4: Pipelines (SDP + RTM)
+| Feature | One-Liner | Demo Line |
+|---------|-----------|-----------|
+| **SDP** | `@dp.materialized_view` — define WHAT, Spark handles WHEN/HOW | "DLT for everyone. Open source. Runs anywhere." |
+| **RTM** | `.trigger(realTime='5 minutes')` — sub-second p99 | "Same API. One line change. Outperformed Flink by 92%." |
+| **SDP + RTM** | `@dp.table` with RTM trigger | "Declarative streaming at sub-second latency." |
 
-| | |
-|---|---|
-| **What** | New trigger type: `.trigger(realTime='5 minutes')` — processes events as they arrive |
-| **One-liner** | "Same Spark API. Sub-second latency. No second engine. Outperformed Flink by 92%." |
-| **Audience reaction** | "You mean I don't need Flink for low-latency streaming?" |
-| **Your killer demo** | BEFORE: `trigger(processingTime='10 seconds')` vs AFTER: `trigger(realTime='5 minutes')` — latency comparison |
-| **Key talking points** | p99 latency in single-digit ms. Streaming shuffle. Kafka source + Foreach/Kafka sinks. Stateless GA in OSS 4.1; stateful in Databricks Runtime 16.4+. |
-| **Flink killer** | RTM outperformed Apache Flink by up to 92% on low-latency benchmarks. Same Spark API, no second engine to manage. |
-| **SDP connection** | "In SDP, streaming is just @dp.table. With RTM, that @dp.table now runs at sub-second latency." |
+### Act 5: Scaling (SDP + Connect + Airflow + K8s)
+| Feature | One-Liner | Demo Line |
+|---------|-----------|-----------|
+| **Airflow + SDP** | Preflight → `spark-pipelines run` → verify → maintain | "Orchestrate SDP like any Spark job. Airflow schedules, SDP declares." |
+| **Spark Connect** | Thin gRPC client, no JVM on client | "pip install pyspark-client. Remote cluster access. No fat JARs." |
+| **K8s** | spark-submit to Kubernetes | "Same pipeline code. Docker → K8s. Cluster mode." |
 
-### Tier 1: Layer On Top of SDP
-| Feature | One-Liner | Reaction |
-|---------|-----------|----------|
-| **VARIANT type** | `parse_json(body)` + `variant_get(body, '$.brand_id', 'int')` — no fixed schema needed | "Wait, you don't need a StructType anymore?" |
-| **Structured Streaming → Iceberg** | Kafka → watermark → Iceberg with `fanout-enabled` + exactly-once. In SDP: just `@dp.table` | Core lakehouse streaming |
+### Act 6: MLflow Agents ("We're Lazy")
+| Agent | What It Does | Demo Line |
+|-------|-------------|-----------|
+| **Guardian** (6a) | Inspects table health, checks data quality, triggers maintenance | "An agent that runs Iceberg compaction for you." |
+| **Analyst** (6b) | Natural language → SQL, queries the lakehouse | "Ask 'what's the busiest city?' and it writes the SQL." |
+| **Autopilot** (6c) | Autonomous monitoring loop — detect drift, fix, alert | "Set it and forget it. The lakehouse manages itself." |
 
-### Tier 2: Add When They Say "More"
-| Feature | One-Liner | Reaction |
-|---------|-----------|----------|
-| **Python UDTFs** | Table-returning functions in `FROM` clause | "You can return a whole table from a function?" |
-| **Recursive CTEs** | `WITH RECURSIVE` — traverse order event chains | "Graph queries in Spark?" |
-| **Collation** | `COLLATE utf8_lcase` — case-insensitive string matching | Quick win, easy to demo |
-
-### Tier 3: If Time Allows
-| Feature | One-Liner |
-|---------|-----------|
-| **KLL Sketches** | Approximate percentiles with sub-linear memory |
-| **SQL Scripting** | Multi-statement SQL blocks |
-| **Arrow UDFs** | Zero-copy Python UDFs |
+**MLflow stack:** MLflow 3.1 tracking server + AI Gateway (routes to Anthropic/OpenAI/Ollama) + tracing (OpenTelemetry) + agent serving. All on Docker Compose.
 
 ---
 
 ## DEMO SCRIPTS — Ready to Run
 
-All scripts are in `scripts/demos/overarchitected/` and pre-loaded.
-
-**Lead with Demo 0 (SDP). It's the headline. Everything else layers on top.**
+All scripts in `scripts/demos/overarchitected/`. Follow the act order.
 
 ### Prerequisites
 ```bash
 ./lakehouse start all
 ./lakehouse testdata generate --days 7
 ./lakehouse testdata load
+./lakehouse start unity-catalog     # Act 2
+./lakehouse start airflow           # Act 5a
+docker compose -f docker-compose-mlflow.yml up -d  # Act 6
 ```
 
-### Demo 0: SDP Showcase (THE HEADLINE — RUN THIS FIRST)
-```bash
-docker exec spark-master-41 /opt/spark/bin/spark-submit \
-  /scripts/demos/overarchitected/00_sdp_showcase.py
-```
-**Three acts:**
-- **Act 1:** "The Old Way" — imperative pipeline, manual ordering, explicit writes
-- **Act 2:** "The New Way" — `@dp.materialized_view`, auto-dependency resolution, just return DataFrames
-- **Act 3:** "Live Extension" — add a new gold table with ZERO changes to execution logic
+| Act | Script | Run Command |
+|-----|--------|-------------|
+| 1 | `01_data_smuggled.py` | `docker exec spark-master-41 spark-submit /scripts/demos/overarchitected/01_data_smuggled.py` |
+| 2 | `02_unity_catalog_setup.py` | `docker exec spark-master-41 spark-submit /scripts/demos/overarchitected/02_unity_catalog_setup.py` |
+| 3 | `03_spark_setup.py` | `docker exec spark-master-41 spark-submit /scripts/demos/overarchitected/03_spark_setup.py` |
+| 4a | `04a_sdp_showcase.py` | `docker exec spark-master-41 spark-submit /scripts/demos/overarchitected/04a_sdp_showcase.py` |
+| 4b | `04b_rtm_streaming.py` | `docker exec spark-master-41 spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.0 /scripts/demos/overarchitected/04b_rtm_streaming.py` |
+| 5a | `05a_airflow_sdp.py` | `docker exec spark-master-41 spark-submit /scripts/demos/overarchitected/05a_airflow_sdp.py` |
+| 5b | `05b_spark_connect.py` | `docker exec spark-master-41 spark-submit /scripts/demos/overarchitected/05b_spark_connect.py` |
+| 6a | `06a_mlflow_guardian.py` | `python scripts/demos/overarchitected/06a_mlflow_guardian.py` |
+| 6b | `06b_mlflow_analyst.py` | `python scripts/demos/overarchitected/06b_mlflow_analyst.py` |
+| 6c | `06c_mlflow_autopilot.py` | `python scripts/demos/overarchitected/06c_mlflow_autopilot.py` |
 
-**Why this leads:** It's the biggest paradigm shift in Spark 4.1. Audience will immediately get it. Nick and Holly will love the before/after. And it sets up every other demo — once you have SDP, you can add VARIANT, streaming, CTEs as new tables without touching the pipeline runner.
+**E2E test runner:** `./scripts/demos/overarchitected/run_e2e_test.sh`
 
-**The real SDP pipeline** (show this after the demo):
-- Code: `scripts/pipelines/pipeline_sdp.py` — 11 tables, full medallion, batch + streaming
-- Config: `scripts/pipelines/spark-pipeline.yml`
-- Run: `spark-pipelines run --spec scripts/pipelines/spark-pipeline.yml`
-- Validate: `spark-pipelines dry-run --spec scripts/pipelines/spark-pipeline.yml`
-
-### Demo 0b: Real-Time Mode (RTM) — CO-HEADLINER
-```bash
-docker exec spark-master-41 /opt/spark/bin/spark-submit \
-  --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.0 \
-  /scripts/demos/overarchitected/00b_realtime_mode.py
-```
-**Shows:** BEFORE (micro-batch `processingTime='10 seconds'`) vs AFTER (RTM `realTime='5 minutes'`). Kafka → parse → Foreach sink with latency metrics. Fallback if RTM trigger unavailable in OSS build. **Prerequisite:** Run `./lakehouse producer` in another terminal.
-
-### Demo 1: VARIANT + Iceberg
-```bash
-docker exec spark-master-41 /opt/spark/bin/spark-submit \
-  /scripts/demos/overarchitected/01_variant_iceberg.py
-```
-**Shows:** parse_json → variant_get → Iceberg write. "What if the JSON body schema changes? VARIANT means you never migrate again."
-
-### Demo 2: Streaming + UDTF
-```bash
-docker exec spark-master-41 /opt/spark/bin/spark-submit \
-  --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.0 \
-  /scripts/demos/overarchitected/02_streaming_udtf.py
-```
-**Shows:** Kafka → watermark → Iceberg sink + Python UDTF for lifecycle explosion. "In SDP, this is just `@dp.table` instead of `@dp.materialized_view`."
-
-### Demo 3: Full Over-Architected Pipeline
-```bash
-docker exec spark-master-41 /opt/spark/bin/spark-submit \
-  /scripts/demos/overarchitected/03_full_overarchitected.py
-```
-**Shows:** VARIANT + Recursive CTE + Collation + gold aggregations. Every feature in one pipeline.
+**Backup scripts** (original standalone demos): `00_sdp_showcase.py`, `00b_realtime_mode.py`, `01_variant_iceberg.py`, `02_streaming_udtf.py`, `03_full_overarchitected.py`
 
 ---
 
 ## IMPROV PLAYBOOK — When They Throw Curveballs
 
-### "Can you make this lower latency?"
-**Your move:** RTM. "One line change: `.trigger(realTime='5 minutes')`. Same API, sub-second p99. No second engine."
+### Pipelines & Scaling
+| Curveball | Your Move |
+|-----------|-----------|
+| "Make it declarative" | SDP. `@dp.materialized_view`. Define WHAT, Spark handles the rest. |
+| "Can you add a table live?" | Add `@dp.materialized_view`, re-run. Zero changes to execution logic. |
+| "How do you schedule this?" | Airflow DAG wraps `spark-pipelines run`. Preflight → run → verify → maintain. |
+| "Can remote users query this?" | Spark Connect. `pip install pyspark-client`. gRPC to the cluster. No JVM. |
+| "Does this scale to Kubernetes?" | Same spark-submit. `--master k8s://`. Pipeline code doesn't change. |
 
-### "How does this compare to Flink?"
-**Your move:** "Same API, same engine, 92% faster in benchmarks. No second system to manage."
+### Streaming & Latency
+| Curveball | Your Move |
+|-----------|-----------|
+| "Add real-time streaming" | Kafka → watermark → Iceberg with `fanout-enabled`. Exactly-once via checkpointing. |
+| "Make it lower latency" | RTM. One line: `.trigger(realTime='5 minutes')`. Sub-second p99. |
+| "How does this compare to Flink?" | "Same API, 92% faster in benchmarks. No second system." |
+| "What about stateful?" | "Stateless GA in OSS 4.1. Stateful in Databricks Runtime 16.4+ preview." |
 
-### "What about stateful streaming?"
-**Your move:** "Stateless is GA in OSS Spark 4.1. Stateful is coming — already in preview on Databricks Runtime 16.4+."
+### Data & Compute
+| Curveball | Your Move |
+|-----------|-----------|
+| "Schema changes?" | VARIANT. `parse_json` stores any JSON. `variant_get` extracts new fields. No migration. |
+| "Case-insensitive search?" | Collation. `COLLATE utf8_lcase`. One keyword. |
+| "Event chain traversal?" | Recursive CTE. Walk order lifecycle as a graph. |
+| "What about Unity Catalog?" | UC 0.4.0. Docker Compose. Catalog-managed commits, credential vending, multi-engine. |
 
-### "Can you add real-time streaming?"
-**Your move:** Kafka source → parse JSON → 10-minute watermark → Iceberg sink with `fanout-enabled`. "Exactly-once via checkpointing. Same Iceberg tables as batch." For sub-second: "Add RTM — `.trigger(realTime='5 minutes')`."
-
-### "What if the order body schema changes?"
-**Your move:** VARIANT. "parse_json stores any JSON. variant_get extracts new fields without migration. Shredding keeps hot paths fast."
-
-### "Can you do case-insensitive search?"
-**Your move:** Collation. `WHERE name COLLATE utf8_lcase LIKE '%pizza%'`. "One keyword. Locale-aware matching. Spark 4.1."
-
-### "Show me the full lifecycle of an order."
-**Your move:** Recursive CTE. "We treat events as a graph. Walk from sequence 0 → 1 → 2 → delivered. New in Spark 4.1."
-
-### "Make it declarative."
-**Your move:** Pull up `pipeline_sdp.py`. "@dp.materialized_view. Define WHAT each table contains. Spark figures out the rest."
-
-### "What about Unity Catalog?"
-**Your move:** "Already in the repo. Docker Compose up, REST catalog at 8081. Multi-engine — same tables readable from DuckDB, Trino, Dremio."
-
-### "Can you deploy this to the cloud?"
-**Your move:** "Terraform in the repo. AWS or Databricks. Same pipeline code, different infra."
+### AI & Agents
+| Curveball | Your Move |
+|-----------|-----------|
+| "Can AI manage this?" | MLflow Guardian agent. Inspects tables, checks quality, runs Iceberg maintenance. |
+| "Can I ask questions in English?" | MLflow Analyst agent. NL → SQL → results. "What's the busiest city?" |
+| "Can it run itself?" | MLflow Autopilot. Continuous monitoring loop. Detect drift, compact, alert. |
+| "What LLM does it use?" | MLflow AI Gateway routes to Anthropic, OpenAI, or local Ollama. Your choice. |
+| "Is the agent traced?" | MLflow Tracing. Every tool call, every LLM interaction. OpenTelemetry native. |
 
 ---
 
-## CONVERSATION STARTERS — Things to Bring Up Naturally
+## CONVERSATION STARTERS — Drop These Naturally
 
-1. **"SDP changes how you think about pipelines. You stop writing execution code and start defining data."** (Lead with this)
-2. **"The before/after is wild — my imperative pipeline is 360 lines with manual ordering. The SDP version is the same logic but the framework handles execution, retries, and parallelism."**
-3. **"What makes SDP special is that streaming is just a decorator change — `@dp.table` instead of `@dp.materialized_view`. Same pipeline, same graph, batch and streaming unified."**
-4. **"Spark 4.1 SDP is basically Databricks DLT for everyone — open source, runs anywhere."** (The line that will land hardest)
-5. **"VARIANT is a game-changer for real-world data. Nobody's JSON is actually consistent."**
-6. **"We run Spark 4.0 AND 4.1 side by side. Same data, different features. Perfect for migration testing."**
-7. **"The whole thing runs on 8GB RAM. Over-architected, but efficient."**
+### The Scaling Story (your throughline)
+1. **"Four things scale you from laptop to production: SDP scales your logic, Airflow scales your orchestration, Connect scales your access, K8s scales your infrastructure. Same pipeline code through all of it."**
+2. **"SDP is DLT for everyone. Open source. Runs anywhere."**
+3. **"Airflow is the glue. It doesn't just schedule SDP — it orchestrates preflight checks, verification, Iceberg maintenance, agent runs. Everything flows through Airflow."**
+4. **"Connect means your data scientists don't need a fat JVM client. K8s means your infra team deploys the same code at scale. SDP means your pipeline code doesn't change between any of these."**
 
-### SDP-Specific Lines (for when you're deep in the demo)
+### RTM
+4. **"RTM beat Flink by 92%. Same Spark API. One line change."**
+5. **"In SDP, streaming is `@dp.table`. With RTM, that `@dp.table` runs at sub-second latency."**
+
+### MLflow Agents
+6. **"We got lazy. So we built three agents — one monitors table health, one answers questions in English, one runs the whole thing autonomously."**
+7. **"MLflow 3.1 + AI Gateway + tracing. The agent calls Iceberg maintenance as a tool. Every action is traced."**
+
+### Open Source
+8. **"The whole thing runs on a laptop. 8 GB RAM. Every component is open source. No cloud account."**
+9. **"We upgraded Unity Catalog to 0.4.0 — catalog-managed commits, credential vending. The gap between OSS and managed is shrinking fast."**
+
+### SDP Deep-Dive Lines
 - "Notice there's no `if __name__` block. No `.write()`. The function just returns a DataFrame."
-- "I can add a new gold table right now — watch, zero changes to the pipeline runner."
-- "Dependencies? Automatic. If this function calls `spark.table('iceberg.silver.orders')`, the framework knows silver must run first."
-- "dry-run catches circular dependencies, missing tables, and schema issues before you run anything."
+- "I can add a new gold table right now — zero changes to the pipeline runner."
+- "Dependencies are automatic. `spark.table('iceberg.silver.orders')` → framework knows silver runs first."
+- "dry-run catches circular deps, missing tables, schema issues before execution."
 
 ---
 
-## ARCHITECTURE DIAGRAM — The Full Over-Architected Picture
+## ARCHITECTURE DIAGRAMS
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│              LAKEHOUSE-AT-HOME: OVER-ARCHITECTED EDITION                │
-└─────────────────────────────────────────────────────────────────────────┘
+Three SVG diagrams are in `docs/graphics/` — open in browser or use in presentation:
 
-  Kafka (:9092)          Parquet /data/*         Unity Catalog (:8081)
-  orders topic           dimensions + events     REST catalog
-       │                      │                       │
-       ▼                      ▼                       ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    SPARK 4.1 (port 7078, UI 8082)                       │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │  Spark Declarative Pipelines (SDP)                                 │ │
-│  │  @dp.materialized_view / @dp.table                                 │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-│         │                                                               │
-│         ▼                                                               │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐  │
-│  │   BRONZE    │  │   BRONZE    │  │   BRONZE    │  │   VARIANT    │  │
-│  │ (streaming) │  │  (batch)    │  │ (dimensions)│  │  body col    │  │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬───────┘  │
-│         └────────────────┴─────────────────┴────────────────┘          │
-│                                  │                                      │
-│                                  ▼                                      │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │  SILVER: orders_enriched (COLLATION for brand names)               │ │
-│  │  SILVER: order_lifecycle (Recursive CTE alternative)               │ │
-│  │  Python UDTF: order_lifecycle_explode()                            │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-│                                  │                                      │
-│                                  ▼                                      │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │  GOLD: hourly_metrics, delivery_performance (percentile_approx)    │ │
-│  │  GOLD: brand_summary (collation-aware)                             │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Iceberg 1.10 (PostgreSQL catalog :5432, SeaweedFS S3 :8333)            │
-│  iceberg.bronze.*  |  iceberg.silver.*  |  iceberg.gold.*               │
-└─────────────────────────────────────────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Airflow 3.1 → spark-submit → Spark 4.1 (batch orchestration)          │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+| Diagram | File | What it shows |
+|---------|------|---------------|
+| **Full Architecture** | [`01_full_architecture.svg`](graphics/01_full_architecture.svg) | All components: Kafka, Spark 4.1 (SDP/RTM/Connect), Iceberg, UC, Airflow, MLflow, K8s |
+| **Scaling Story** | [`02_scaling_story.svg`](graphics/02_scaling_story.svg) | Four-part scaling: SDP (logic) + Airflow (orchestration) + Connect (access) + K8s (infra) |
+| **Show Flow** | [`03_show_flow.svg`](graphics/03_show_flow.svg) | 6-act narrative progression with timing, tech per act, HEADLINERS badge on Act 4 |
+
+Quick reference — component map:
+
+| Layer | Components | Ports |
+|-------|-----------|-------|
+| **Ingestion** | Kafka 3.6, REST APIs, Files | 9092 |
+| **Compute** | Spark 4.1 (SDP, RTM, Connect, VARIANT, CTE, Collation, UDTFs) | 7078, 8082, 15002 |
+| **Storage** | Iceberg 1.10, SeaweedFS, PostgreSQL 16 | 8333, 5432 |
+| **Catalog** | Unity Catalog OSS 0.4.0 | 8080 |
+| **Orchestration** | Airflow 3.1 (the glue) | 8085 |
+| **Intelligence** | MLflow 3.1 (Gateway, Tracing, Agents) | 5000 |
+| **Infrastructure** | Docker Compose (dev) / Kubernetes (prod) | — |
 
 ---
 
 ## CHECKLIST — Before You Go On
 
-- [ ] `./lakehouse start all` is running and healthy
-- [ ] `./lakehouse testdata generate --days 7 && ./lakehouse testdata load` completed
-- [ ] **SDP demo tested first:** `00_sdp_showcase.py` runs clean (this is your opener)
-- [ ] **RTM demo tested:** `00b_realtime_mode.py` (run `./lakehouse producer` in another terminal first)
-- [ ] Other demos tested: `01_variant_iceberg.py`, `02_streaming_udtf.py`, `03_full_overarchitected.py`
-- [ ] Spark 4.1 UI accessible at http://localhost:8082
-- [ ] Know your opening pitch (30 seconds — leads with SDP)
-- [ ] Can explain the before/after: imperative → declarative (see `docs/sdp-before-after.md`)
+- [ ] `./lakehouse start all` running and healthy
+- [ ] `./lakehouse testdata generate --days 7 && ./lakehouse testdata load`
+- [ ] `./lakehouse start unity-catalog` running (Act 2)
+- [ ] `./lakehouse start airflow` running (Act 5)
+- [ ] `docker compose -f docker-compose-mlflow.yml up -d` running (Act 6)
+- [ ] `ANTHROPIC_API_KEY` exported (or Ollama running for local LLM)
+- [ ] Acts 1-4 tested: `01_data_smuggled.py` through `04b_rtm_streaming.py`
+- [ ] Act 5 tested: `05a_airflow_sdp.py`, `05b_spark_connect.py`
+- [ ] Act 6 tested: `06a_mlflow_guardian.py` (at minimum)
+- [ ] Spark 4.1 UI at http://localhost:8082
+- [ ] Airflow UI at http://localhost:8085
+- [ ] MLflow UI at http://localhost:5000
+- [ ] Know your opening pitch (30 seconds)
 - [ ] Reviewed improv playbook above
-- [ ] Have the GitHub repo URL ready: `github.com/lisancao/lakehouse-at-home`
+- [ ] GitHub URL ready: `github.com/lisancao/lakehouse-at-home`
 
 ---
 
@@ -298,11 +267,21 @@ docker exec spark-master-41 /opt/spark/bin/spark-submit \
 
 | Metric | Value |
 |--------|-------|
-| Docker images | 6 containers (Spark master + worker, Kafka, Zookeeper, PostgreSQL, SeaweedFS) |
+| Docker services | 10+ (Spark, Kafka, ZK, PostgreSQL, SeaweedFS, UC, Airflow, MLflow) |
 | Minimum RAM | 8 GB (16 GB recommended) |
 | Test data | 90 days of order lifecycle events across multiple cities |
 | Medallion layers | 3 (Bronze, Silver, Gold) |
-| Spark versions | 2 (4.0.1 + 4.1.0, run side-by-side) |
-| Pipeline tables | 11 total (4 dims + 2 fact bronze, 2 silver, 3 gold) |
-| Lines of pipeline code | ~350 (SDP), ~360 (imperative) |
+| Spark versions | 2 (4.0.1 + 4.1.0, side-by-side) |
+| Pipeline tables | 11 (4 dims + 2 fact bronze, 2 silver, 3 gold) |
+| MLflow agents | 3 (Guardian, Analyst, Autopilot) |
+| Demo scripts | 11 (Acts 1-6c) |
+| Companion guides | 6 deep-dive docs in `docs/guides/overarchitected/` |
 | Setup time | ~5 minutes from `git clone` to first query |
+
+---
+
+## FUTURE EXPLORATION
+
+| Branch | Idea | Notes |
+|--------|------|-------|
+| `feat/neon-postgres-replacement` | Replace PostgreSQL 16 with Neon | Serverless Postgres (Apache 2.0 OSS). Adds autoscaling, database branching (copy-on-write for catalog/MLflow testing), scale-to-zero. Self-hosting requires pageserver + safekeeper + compute. Best fit: cloud deployment or "serverless lakehouse" episode. Not worth the complexity for Docker Compose local dev — vanilla Postgres is simpler and UC/MLflow just need a JDBC endpoint. |

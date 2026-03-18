@@ -34,11 +34,11 @@ pip install mlflow>=3.1 anthropic openai
 | 1 | `01_data_smuggled.py` | "We Have Data" | ~3 min | OTF portability, parquet, Iceberg |
 | 2 | `02_unity_catalog_setup.py` | "We Need a Catalog" | ~10 min | UC 0.4.0, REST catalog, credential vending |
 | 3 | `03_spark_setup.py` | "We Need Compute" | ~10 min | Spark 4.1 config, VARIANT, CTE, Collation, Connect |
-| 4a | `04a_sdp_showcase.py` | "We Need Pipelines — SDP" | ~8 min | Declarative pipelines, 3-act structure |
+| 4a | `04a_sdp_showcase.py` | "We Need Pipelines — SDP" | ~8 min | Declarative pipelines, 3-act before/after |
 | 4b | `04b_rtm_streaming.py` | "We Need Pipelines — RTM" | ~5 min | Real-Time Mode, micro-batch vs RTM |
-| 5a | `05a_airflow_sdp.py` | "Scale: Orchestration" | ~5 min | Airflow operators, SDP wiring |
-| 5b | `05b_spark_connect.py` | "Scale: Thin Client" | ~5 min | Spark Connect progression |
-| 5c | `05c_spark_k8s.sh` | "Scale: Kubernetes" | ~3 min | K8s deployment reference |
+| 5a | `05a_airflow_sdp.py` | "Scale: Orchestration" | ~5 min | Airflow is the glue — orchestrates SDP, streaming, agents, maintenance |
+| 5b | `05b_spark_connect.py` | "Scale: Access" | ~5 min | Spark Connect — thin gRPC client, no JVM, remote users |
+| 5c | `05c_spark_k8s.sh` | "Scale: Infrastructure" | ~3 min | Same code, Docker Compose → `--master k8s://` |
 | 6a | `06a_mlflow_guardian.py` | "We're Lazy — Guardian" | ~5 min | MLflow agent, table health, maintenance |
 | 6b | `06b_mlflow_analyst.py` | "We're Lazy — Analyst" | ~5 min | NL → SQL agent, data Q&A |
 | 6c | `06c_mlflow_autopilot.py` | "We're Lazy — Autopilot" | ~5 min | Autonomous monitoring loop |
@@ -87,13 +87,21 @@ docker exec spark-master-41 /opt/spark/bin/spark-submit \
     /scripts/demos/overarchitected/04b_rtm_streaming.py
 ```
 
-### Act 5a: Airflow + SDP
+### Act 5a: Airflow — The Orchestration Backbone
 ```bash
 docker exec spark-master-41 /opt/spark/bin/spark-submit \
     /scripts/demos/overarchitected/05a_airflow_sdp.py
 
 # Check Airflow UI: http://localhost:8085 (admin/admin)
 # DAG: lakehouse_sdp_pipeline
+#
+# Airflow orchestrates the full stack:
+#   - SDP pipelines (spark-pipelines run)
+#   - Preflight checks (cluster health, data source connectivity)
+#   - Post-run verification (table row counts, freshness)
+#   - Iceberg maintenance (compaction, snapshot expiry)
+#   - Streaming job lifecycle (start/monitor RTM queries)
+#   - MLflow agent runs (Guardian, Analyst, Autopilot on schedule)
 ```
 
 ### Act 5b: Spark Connect
@@ -146,34 +154,15 @@ python scripts/demos/overarchitected/06c_mlflow_autopilot.py --monitor --interva
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     LAKEHOUSE STACK                           │
-│                                                              │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │  Spark   │  │ Iceberg  │  │  Kafka   │  │ Airflow  │   │
-│  │  4.1     │  │  1.10    │  │  3.6     │  │  3.x     │   │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘   │
-│       │              │              │              │          │
-│       ▼              ▼              ▼              ▼          │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │              Unity Catalog OSS 0.3.1                  │   │
-│  │         (REST catalog + credential vending)           │   │
-│  └──────────────────────┬───────────────────────────────┘   │
-│                         │                                    │
-│  ┌──────────┐  ┌───────┴──────┐  ┌──────────┐              │
-│  │PostgreSQL│  │  SeaweedFS   │  │  MLflow  │              │
-│  │(metadata)│  │  (S3 data)   │  │  3.x     │              │
-│  └──────────┘  └──────────────┘  │ +Gateway  │              │
-│                                   │ +Tracing  │              │
-│                                   └──────────┘              │
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │         Spark Connect (port 15002)                    │   │
-│  │    Thin client → gRPC → cluster (no JVM on client)    │   │
-│  └──────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────┘
-```
+SVG diagrams in `docs/graphics/`:
+
+| Diagram | File | Description |
+|---------|------|-------------|
+| Full Stack | [`01_full_architecture.svg`](../../../docs/graphics/01_full_architecture.svg) | All components, connections, and ports |
+| Scaling Story | [`02_scaling_story.svg`](../../../docs/graphics/02_scaling_story.svg) | SDP + Airflow + Connect + K8s |
+| Show Flow | [`03_show_flow.svg`](../../../docs/graphics/03_show_flow.svg) | 6-act narrative with timing |
+
+**Components:** Spark 4.1 (SDP, RTM, Connect) | Iceberg 1.10 | Kafka 3.6 | Airflow 3.1 | Unity Catalog OSS 0.4.0 | MLflow 3.1 (Gateway, Tracing, Agents) | PostgreSQL 16 | SeaweedFS | Kubernetes (reference)
 
 ## Ports
 

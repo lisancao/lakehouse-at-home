@@ -1,457 +1,327 @@
-# OverArchitected Show — Lakehouse-at-Home Scaffold
+# OverArchitected Show — Technical Reference
 
-**Purpose:** Build open-source lakehouse architecture live on the Databricks "OverArchitected" show. This document provides heavy Spark 4.1 components, demo scripts, and improv-ready challenges for Lisa's appearance.
+**Premise:** Holly and Nick quit Databricks. They smuggled out their data in OTFs and want to rebuild the platform — for free, using open source. This doc is the technical scaffold behind each act.
 
-**Stack:** Spark 4.0/4.1 | Iceberg 1.10 | Kafka 3.6 | Airflow 3.1 | PostgreSQL 16 | SeaweedFS | Unity Catalog OSS 0.3.1 | Docker Compose
+**Stack:** Spark 4.1 | Iceberg 1.10 | Kafka 3.6 | Airflow 3.1 | UC OSS 0.4.0 | MLflow 3.1 | PostgreSQL 16 | SeaweedFS | Docker Compose
 
-**Domain:** Ghost kitchen / food delivery (orders, brands, locations, items)
+**Domain:** Ghost kitchen food delivery — orders, brands, locations, items, 7 lifecycle events per order.
 
 ---
 
-## 1. Advanced Spark Architecture Components (5–7 Heavy Components)
+## Act 1: "We Have Data" — OTF Portability
 
-### Component 1: VARIANT Type for Semi-Structured Order Bodies
+**Point:** Open Table Format data is portable. No vendor lock-in.
 
-**What:** Store the polymorphic `body` JSON (different schema per event type) as Spark 4.1's native VARIANT type instead of `from_json` + fixed schema. Enables schema evolution and shredding.
+**Script:** `01_data_smuggled.py`
 
-**Why impressive:** VARIANT is GA in Spark 4.1. Shredding extracts hot paths into Parquet columns for fast reads. No more brittle `StructType` for evolving JSON.
+- Reads raw parquet files (dimensions + events) — proves they work outside any platform
+- Shows schemas, row counts, sample data
+- Reads Iceberg tables if catalog is configured
+- The "smuggled data" premise: if you built on OTFs, your data goes with you
 
-**Runnable PySpark:**
+**Key line:** "We left Databricks but we took our Iceberg tables. They work anywhere."
 
+---
+
+## Act 2: "We Need a Catalog" — Unity Catalog OSS 0.4.0
+
+**Point:** Governance isn't optional. UC OSS gives you a REST catalog with real features.
+
+**Script:** `02_unity_catalog_setup.py`
+
+**What's new in UC 0.4.0:**
+| Feature | Description |
+|---------|-------------|
+| Catalog-managed commits | UC coordinates multi-engine writes — no more write conflicts |
+| Credential vending | External locations API, storage credentials (AWS IAM role support) |
+| Managed storage | `storage_root` on catalogs and schemas |
+| REST Iceberg catalog | `http://localhost:8080/api/2.1/unity-catalog/iceberg` |
+| Multi-engine access | Same tables from Spark, DuckDB, Trino, Polars, Dremio |
+
+**Config snippet:**
+```
+spark.sql.catalog.unity = org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.unity.uri = http://localhost:8080/api/2.1/unity-catalog/iceberg
+spark.sql.catalog.unity.type = rest
+```
+
+**Key line:** "Catalog-managed commits in 0.4.0 — UC coordinates writes from multiple engines. That was a Databricks-only feature until now."
+
+---
+
+## Act 3: "We Need Compute" — Spark 4.1 Features
+
+**Point:** Spark 4.1 is stacked with new capabilities.
+
+**Script:** `03_spark_setup.py`
+
+### VARIANT Type
 ```python
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as f
-
-spark = SparkSession.builder.appName("VariantDemo").getOrCreate()
-spark.sparkContext.setLogLevel("WARN")
-
-# Read orders with body as string
-df = spark.read.parquet("/data/events/orders_90d.parquet").limit(1000)
-
-# Convert body to VARIANT (Spark 4.1)
 df_variant = df.withColumn("body_variant", f.parse_json("body"))
-
-# Extract fields using variant_get (JSONPath)
 df_extracted = df_variant.withColumn(
     "brand_id", f.expr("variant_get(body_variant, '$.brand_id', 'int')")
 ).withColumn(
     "total", f.expr("variant_get(body_variant, '$.total', 'double')")
-).withColumn(
-    "driver_id", f.expr("try_variant_get(body_variant, '$.driver_id', 'string')")
 )
-
-# Write to Iceberg with VARIANT column
-spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg.overarch")
-spark.sql("DROP TABLE IF EXISTS iceberg.overarch.orders_variant")
-df_extracted.write.mode("overwrite").saveAsTable("iceberg.overarch.orders_variant")
-print("VARIANT table created: iceberg.overarch.orders_variant")
 ```
+**Key line:** "Nobody's JSON is consistent. VARIANT means you stop pretending it is."
 
-**Connection:** Feeds into `silver.orders_enriched`; replaces fixed `body_schema` with flexible VARIANT for event-type-specific bodies.
-
----
-
-### Component 2: Python UDTF for Order Lifecycle Explosion
-
-**What:** User-Defined Table Function that takes one row per order and explodes it into one row per event type (order_created, kitchen_started, …) with computed durations.
-
-**Why impressive:** UDTFs return tables; they're invoked in `FROM` and enable complex row-to-multi-row logic that's hard to express in pure SQL.
-
-**Runnable PySpark:**
-
-```python
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as f
-from pyspark.sql.udtf import UDTF
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType
-
-spark = SparkSession.builder.appName("UDTFDemo").getOrCreate()
-spark.sparkContext.setLogLevel("WARN")
-
-@UDTF
-class OrderLifecycleExploder:
-    def eval(self, order_id: str, created_at, delivered_at, location_id: int, city_name: str):
-        if created_at is None or delivered_at is None:
-            return
-        from datetime import datetime
-        total_mins = (delivered_at - created_at).total_seconds() / 60 if delivered_at else None
-        yield (order_id, "order_created", created_at, None, location_id, city_name)
-        yield (order_id, "delivered", delivered_at, total_mins, location_id, city_name)
-
-# Register UDTF
-spark.udtf.register("order_lifecycle_explode", OrderLifecycleExploder)
-
-# Use in SQL
-lifecycle = spark.table("iceberg.silver.order_lifecycle")
-spark.sql("""
-    SELECT * FROM order_lifecycle_explode(
-        (SELECT order_id, created_at, delivered_at, location_id, city_name
-         FROM iceberg.silver.order_lifecycle LIMIT 10)
-    )
-""").show(20, truncate=False)
-```
-
-**Connection:** Complements `silver.order_lifecycle`; can be used for event-sourced analytics or audit trails.
-
----
-
-### Component 3: Approximate Sketches (KLL / Theta) for Percentiles
-
-**What:** Spark 4.1 adds `kll_sketch` and `theta_sketch` for approximate aggregations. Use KLL for order total percentiles without full sort.
-
-**Why impressive:** Sub-linear memory; good for streaming and large datasets. New in Spark 4.1.
-
-**Runnable PySpark:**
-
-```python
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as f
-
-spark = SparkSession.builder.appName("KLLDemo").getOrCreate()
-spark.sparkContext.setLogLevel("WARN")
-
-orders = spark.table("iceberg.silver.orders_enriched").filter(
-    f.col("event_type") == "order_created"
+### Recursive CTEs
+```sql
+WITH RECURSIVE event_chain AS (
+    SELECT order_id, event_type, sequence, 1 AS depth
+    FROM order_events WHERE sequence = 0
+    UNION ALL
+    SELECT e.order_id, e.event_type, e.sequence, c.depth + 1
+    FROM order_events e
+    JOIN event_chain c ON e.order_id = c.order_id AND e.sequence = c.sequence + 1
 )
-
-# KLL sketch for approximate percentiles (Spark 4.1)
-from pyspark.sql.functions import kll_sketch, kll_sketch_merge, kll_quantile
-
-sketches = orders.agg(
-    kll_sketch("order_total", 0.01).alias("order_total_sketch")
-).collect()[0]["order_total_sketch"]
-
-# Or use percentile_approx (available in 4.0/4.1) for simpler demo
-p50 = orders.agg(f.percentile_approx("order_total", 0.5).alias("p50")).collect()[0]["p50"]
-p95 = orders.agg(f.percentile_approx("order_total", 0.95).alias("p95")).collect()[0]["p95"]
-print(f"Order total percentiles: p50={p50:.2f}, p95={p95:.2f}")
+SELECT * FROM event_chain ORDER BY order_id, depth
 ```
+**Key line:** "Graph queries in Spark. Walk the full order lifecycle as a chain."
 
-**Note:** `kll_sketch` may require `spark.sql.adaptive.enabled` and specific config. Fallback: `percentile_approx` is well-supported and still impressive.
-
-**Connection:** Powers `gold.delivery_performance` p95 metrics; can replace exact percentiles for scale.
+### Collation
+```sql
+SELECT name FROM brands WHERE name COLLATE utf8_lcase LIKE '%pizza%'
+```
+**Key line:** "One keyword. Case-insensitive. Locale-aware. Done."
 
 ---
 
-### Component 4: Recursive CTE for Order Event Chain
+## Act 4: "We Need Pipelines" — SDP + RTM
 
-**What:** Spark 4.1 has recursive CTEs. Model order lifecycle as a graph: each event points to the next by sequence.
+### Act 4a: Spark Declarative Pipelines (SDP)
 
-**Why impressive:** Recursive CTEs are GA in Spark 4.1; great for graph-like data (event chains, hierarchies).
+**Script:** `04a_sdp_showcase.py` (three-act structure within the act)
 
-**Runnable PySpark:**
+**The paradigm shift:**
 
-```python
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as f
+| | Imperative (old) | SDP (new) |
+|---|---|---|
+| Execution order | Manual | Automatic (from `spark.table()` calls) |
+| Writing data | Explicit `.write()` | Framework handles it |
+| Adding a table | Update execution order, test, pray | Add `@dp.materialized_view`, re-run |
+| Streaming | Separate `writeStream` logic | `@dp.table` — same framework |
+| Running | `python script.py` | `spark-pipelines run --spec pipeline.yml` |
 
-spark = SparkSession.builder.appName("RecursiveCTE").getOrCreate()
-spark.sparkContext.setLogLevel("WARN")
-
-# Create temp view of order events
-orders = spark.table("iceberg.silver.orders_enriched")
-orders.createOrReplaceTempView("order_events")
-
-# Recursive CTE: chain events by (order_id, sequence)
-spark.sql("""
-    WITH RECURSIVE event_chain AS (
-        SELECT order_id, event_id, event_type, event_timestamp, sequence, 1 AS depth
-        FROM order_events
-        WHERE sequence = 0
-        UNION ALL
-        SELECT e.order_id, e.event_id, e.event_type, e.event_timestamp, e.sequence, c.depth + 1
-        FROM order_events e
-        JOIN event_chain c ON e.order_id = c.order_id AND e.sequence = c.sequence + 1
-    )
-    SELECT order_id, event_type, event_timestamp, depth
-    FROM event_chain
-    WHERE order_id IN (SELECT order_id FROM order_events LIMIT 5)
-    ORDER BY order_id, depth
-""").show(30, truncate=False)
-```
-
-**Connection:** Alternative to pivot in `order_lifecycle`; useful for path analysis and anomaly detection.
-
----
-
-### Component 5: Structured Streaming with Iceberg Fanout + Real-Time Mode (RTM)
-
-**What:** Kafka → Spark Structured Streaming → Iceberg (or Foreach) with micro-batch or **Real-Time Mode**. RTM is a new trigger type in Spark 4.1 that processes events as they arrive with p99 latency in single-digit milliseconds.
-
-**Why impressive:** Combines real-time ingestion, Iceberg table format, and checkpointing. **RTM outperformed Apache Flink by up to 92%** on low-latency benchmarks — same Spark API, no second engine. Streaming shuffle passes data between stages immediately.
-
-**BEFORE (micro-batch):**
-```python
-query = parsed.writeStream \
-    .format("iceberg") \
-    .outputMode("append") \
-    .option("checkpointLocation", "/tmp/checkpoints/orders_stream") \
-    .option("fanout-enabled", "true") \
-    .trigger(processingTime="10 seconds") \
-    .toTable("iceberg.bronze.orders_streaming")
-```
-
-**AFTER (Real-Time Mode):**
-```python
-query = parsed.writeStream \
-    .format("kafka") \  # or foreach for OSS; Iceberg RTM support in Databricks
-    .outputMode("update") \
-    .option("checkpointLocation", "/tmp/checkpoints/orders_rtm") \
-    .trigger(realTime="5 minutes") \
-    .start()
-```
-
-**Key talking points:**
-- OSS Spark 4.1: stateless, single-stage, Kafka source, Kafka/Foreach sinks
-- Databricks Runtime 16.4+: stateful, multi-stage, broader sink support
-- One line change: `.trigger(realTime='5 minutes')` — duration is micro-batch window
-
-**Connection:** Matches `pipeline_sdp.py` `orders_streaming`; unifies batch + streaming. In SDP, streaming is `@dp.table`; with RTM, that runs at sub-second latency.
-
----
-
-### Component 6: Collation Support for Case-Insensitive String Comparison
-
-**What:** Spark 4.1 collation allows `COLLATE` for locale-aware and case-insensitive string operations.
-
-**Why impressive:** New in Spark 4.1; important for i18n and data quality (e.g., "Pizza" vs "pizza").
-
-**Runnable PySpark:**
-
-```python
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as f
-
-spark = SparkSession.builder.appName("CollationDemo").getOrCreate()
-spark.sparkContext.setLogLevel("WARN")
-
-brands = spark.table("iceberg.bronze.dim_brands")
-
-# Collation for case-insensitive comparison (Spark 4.1)
-# Syntax: col COLLATE collation_name
-result = spark.sql("""
-    SELECT name, name COLLATE utf8_lcase AS name_lower
-    FROM iceberg.bronze.dim_brands
-    WHERE name COLLATE utf8_lcase LIKE '%pizza%'
-""")
-result.show(truncate=False)
-```
-
-**Connection:** Use in `silver`/`gold` filters when matching brand names, item names, or city names.
-
----
-
-### Component 7: Spark Declarative Pipelines (SDP) with `@dp.materialized_view`
-
-**What:** Official SDP API: `from pyspark import pipelines as dp` with `@dp.materialized_view` and `@dp.table`. Spark infers DAG and execution order.
-
-**Why impressive:** Shift from imperative to declarative; Spark handles parallelism, retries, checkpoints.
-
-**Runnable PySpark (from existing pipeline_sdp.py):**
-
+**Core API:**
 ```python
 from pyspark import pipelines as dp
-from pyspark.sql import functions as f
 
-@dp.materialized_view(name="gold.overarch_metrics")
-def overarch_metrics():
+@dp.materialized_view(name="gold.hourly_metrics")
+def hourly_metrics():
     orders = spark.table("iceberg.silver.orders_enriched")
     return orders.filter(f.col("event_type") == "order_created").groupBy(
-        "event_date", "city_name"
-    ).agg(
-        f.count("order_id").alias("orders"),
-        f.sum("order_total").alias("revenue"),
-    )
+        "event_date", "event_hour", "city_name"
+    ).agg(f.count("order_id").alias("order_count"))
 ```
 
-**Connection:** Extends existing SDP pipeline; add new gold tables without touching execution logic.
+**Key lines:**
+- "Define WHAT each table contains. Spark handles WHEN and HOW."
+- "DLT for everyone. Open source. Runs anywhere."
+- "I can add a new gold table live — zero changes to the pipeline runner."
 
----
+### Act 4b: Real-Time Mode (RTM)
 
-## 2. Spark 4.1 Features to Showcase (Prioritized)
+**Script:** `04b_rtm_streaming.py`
 
-| Feature | Show Value | Demo Complexity |
-|---------|------------|-----------------|
-| **VARIANT type** | High — semi-structured, shredding | Medium |
-| **Spark Declarative Pipelines (SDP)** | High — declarative DAG | Low (already in repo) |
-| **Python UDTFs** | High — table-returning functions | Medium |
-| **Recursive CTEs** | Medium — graph/chain analytics | Medium |
-| **Collation** | Medium — i18n, case-insensitive | Low |
-| **Structured Streaming + Iceberg** | High — real-time lakehouse | Medium |
-| **Approximate sketches (KLL/Theta)** | Medium — scale-friendly percentiles | Medium |
-| **SQL Scripting GA** | Low — improved error handling | N/A |
-| **Arrow UDF/UDTF** | High — performance | Advanced |
+**BEFORE vs AFTER:**
+```python
+# BEFORE: micro-batch — fixed 10s scheduling delay
+.trigger(processingTime="10 seconds")
 
-**Recommended order for show:** SDP → VARIANT → Streaming→Iceberg → UDTF → Recursive CTE → Collation.
-
----
-
-## 3. Over-Architected Architecture Diagram (ASCII)
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────────────┐
-│                    LAKEHOUSE-AT-HOME: OVER-ARCHITECTED EDITION                           │
-│                    (Every Feature, Wired Together)                                       │
-└─────────────────────────────────────────────────────────────────────────────────────────┘
-
-  ┌──────────────┐     ┌──────────────┐     ┌──────────────────────────────────────────┐
-  │   Kafka      │     │  Parquet     │     │  Unity Catalog OSS (REST)                  │
-  │   :9092      │     │  /data/*     │     │  :8081 (optional)                          │
-  └──────┬───────┘     └──────┬───────┘     └──────────────────┬─────────────────────────┘
-         │                    │                                │
-         │  orders topic       │  dimensions + events            │  catalog metadata
-         ▼                    ▼                                ▼
-  ┌──────────────────────────────────────────────────────────────────────────────────────┐
-  │                         SPARK 4.1 (port 7078, UI 8082)                               │
-  │  ┌─────────────────────────────────────────────────────────────────────────────────┐ │
-  │  │  Spark Declarative Pipelines (SDP)                                               │ │
-  │  │  @dp.materialized_view / @dp.table                                               │ │
-  │  └─────────────────────────────────────────────────────────────────────────────────┘ │
-  │           │                                                                          │
-  │           ▼                                                                          │
-  │  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────────────────┐  │
-  │  │   BRONZE    │   │   BRONZE    │   │   BRONZE    │   │  VARIANT body column    │  │
-  │  │  (streaming)│   │  (batch)    │   │  (dimensions)│   │  parse_json → shredding │  │
-  │  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘   └───────────┬───────────────┘  │
-  │         │                │                 │                       │                   │
-  │         └────────────────┴─────────────────┴─────────────────────┘                   │
-  │                                    │                                                   │
-  │                                    ▼                                                   │
-  │  ┌─────────────────────────────────────────────────────────────────────────────────┐  │
-  │  │  SILVER: orders_enriched (COLLATION for brand names)                             │  │
-  │  │  SILVER: order_lifecycle (Recursive CTE alternative)                             │  │
-  │  │  Python UDTF: order_lifecycle_explode()                                          │  │
-  │  └─────────────────────────────────────────────────────────────────────────────────┘  │
-  │                                    │                                                   │
-  │                                    ▼                                                   │
-  │  ┌─────────────────────────────────────────────────────────────────────────────────┐  │
-  │  │  GOLD: hourly_metrics, delivery_performance (KLL/percentile_approx)              │  │
-  │  │  GOLD: brand_summary (collation-aware)                                           │  │
-  │  └─────────────────────────────────────────────────────────────────────────────────┘  │
-  └──────────────────────────────────────────────────────────────────────────────────────┘
-                                         │
-                                         ▼
-  ┌──────────────────────────────────────────────────────────────────────────────────────┐
-  │  Iceberg 1.10 Tables (PostgreSQL catalog :5432, SeaweedFS S3 :8333)                    │
-  │  iceberg.bronze.* | iceberg.silver.* | iceberg.gold.*                                 │
-  └──────────────────────────────────────────────────────────────────────────────────────┘
-                                         │
-                                         ▼
-  ┌──────────────────────────────────────────────────────────────────────────────────────┐
-  │  Airflow 3.1 DAGs → spark-submit → Spark 4.1                                          │
-  │  (Orchestrates batch pipelines, maintenance)                                          │
-  └──────────────────────────────────────────────────────────────────────────────────────┘
+# AFTER: Real-Time Mode — sub-second p99
+.trigger(realTime="5 minutes")
 ```
 
----
+**Key stats:**
+- p99 latency: single-digit milliseconds (stateless)
+- Outperformed Flink by 92% on low-latency benchmarks
+- OSS Spark 4.1: stateless, Kafka source, Kafka/Foreach sinks
+- Databricks Runtime 16.4+: stateful, multi-stage, broader sinks
 
-## 4. Live Demo Script Scaffolds (4 Scripts)
+**SDP connection:** `@dp.table` (streaming) + RTM trigger = declarative sub-second pipelines.
 
-### Demo 0b: Real-Time Mode (RTM) — BEFORE vs AFTER
-
-**File:** `scripts/demos/overarchitected/00b_realtime_mode.py`
-
-**Goal:** Show micro-batch (`processingTime='10 seconds'`) vs Real-Time Mode (`realTime='5 minutes'`). Kafka → parse → Foreach sink with latency metrics. Fallback if RTM unavailable in OSS build.
-
-**Run:** `docker exec spark-master-41 /opt/spark/bin/spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.0 /scripts/demos/overarchitected/00b_realtime_mode.py`
-
-**Prerequisite:** `./lakehouse producer` in another terminal.
+**Key line:** "Same API. One line change. No second engine. Flink is looking over its shoulder."
 
 ---
 
-### Demo 1: Foundation (VARIANT + Iceberg) — ~60 lines
+## Act 5: "We Need to Scale" — Airflow + SDP + Connect + K8s
 
-**File:** `scripts/demos/overarchitected/01_variant_iceberg.py`
+**Four scaling dimensions. Each one solves a different problem.**
 
-**Goal:** Ingest orders, convert `body` to VARIANT, extract fields, write to Iceberg.
+| Dimension | Component | What it scales |
+|-----------|-----------|---------------|
+| Logic | SDP | Pipeline definitions — declarative, auto-deps, 1→100 tables |
+| Orchestration | Airflow | Everything else — scheduling, preflight, verification, maintenance, agents |
+| Access | Spark Connect | Who can use Spark — thin gRPC clients, no JVM, remote access |
+| Infrastructure | K8s | Where it runs — same code, Docker Compose → Kubernetes |
 
-**Run:** `docker exec spark-master-41 /opt/spark/bin/spark-submit /scripts/demos/overarchitected/01_variant_iceberg.py`
+### Act 5a: Airflow — The Orchestration Backbone
+
+**Script:** `05a_airflow_sdp.py` | **DAG:** `dags/sdp_pipeline.py`
+
+**Airflow orchestrates the entire stack, not just SDP:**
+1. **SDP pipelines** — `spark-pipelines run --spec spark-pipeline.yml`
+2. **Preflight checks** — verify Spark cluster and data sources are accessible
+3. **Post-run verification** — check output tables have data, row counts
+4. **Iceberg maintenance** — compaction, snapshot expiry, orphan cleanup
+5. **Streaming jobs** — start/monitor RTM streaming queries
+6. **Agent runs** — trigger MLflow Guardian, Analyst, Autopilot on schedule
+
+**Key line:** "SDP declares the pipeline. Airflow orchestrates everything around it — preflight, verification, maintenance, agent runs. Airflow is the glue."
+
+**Why Airflow, not cron or a shell script:**
+- Dependency-aware DAGs — if preflight fails, nothing runs
+- Built-in retry/alerting — PagerDuty, Slack integration
+- UI for monitoring — you can see every run, every task, every log
+- Extensible — custom operators for Spark, Iceberg, MLflow
+
+### Act 5b: Spark Connect — Thin Client Access
+
+**Script:** `05b_spark_connect.py`
+
+**The progression:**
+```bash
+# 1. Classic: fat client, JVM on every machine
+docker exec spark-master-41 spark-submit my_script.py
+
+# 2. Spark Connect: thin gRPC client
+pip install pyspark-client
+python -c "from pyspark.sql import SparkSession; spark = SparkSession.builder.remote('sc://localhost:15002').getOrCreate()"
+
+# 3. Start the server:
+docker exec spark-master-41 /opt/spark/sbin/start-connect-server.sh --master spark://spark-master-41:7078
+```
+
+**Why this matters for scaling:**
+- No JVM on the client → lightweight access for data scientists, analysts, notebooks
+- gRPC protocol → language-agnostic (Python, Go, Rust clients exist)
+- Decouple client from cluster → multiple remote users, one cluster
+
+**Key line:** "Connect scales who can use Spark. No fat JVM on every laptop."
+
+### Act 5c: Kubernetes (Reference)
+
+**Script:** `05c_spark_k8s.sh`
+
+Same spark-submit, different master:
+```bash
+spark-submit --master k8s://https://<k8s-api>:443 \
+  --deploy-mode cluster \
+  --conf spark.kubernetes.container.image=apache/spark:4.1.0 \
+  /scripts/pipelines/pipeline_spark41.py
+```
+
+**Key line:** "Same pipeline code. Docker Compose for dev. Kubernetes for prod."
+
+### The Four-Part Pitch (tie it together)
+
+> "SDP scales your logic — declarative pipelines, auto-deps.
+> Airflow scales your orchestration — it's the glue that runs everything.
+> Connect scales your access — thin clients, no JVM.
+> K8s scales your infrastructure — same code, bigger cluster.
+> All four together? That's how you go from a Docker Compose demo to production."
 
 ---
 
-### Demo 2: Streaming + UDTF — ~80 lines
+## Act 6: "We're Lazy" — MLflow AI Agents
 
-**File:** `scripts/demos/overarchitected/02_streaming_udtf.py`
+**Point:** If we've built all this infrastructure, can AI manage it for us?
 
-**Goal:** Kafka → Streaming → Iceberg; then UDTF to explode order lifecycle.
+**Stack:** MLflow 3.1 + AI Gateway + Tracing (OpenTelemetry) + Agent Serving
 
-**Run:** `docker exec spark-master-41 /opt/spark/bin/spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.0 /scripts/demos/overarchitected/02_streaming_udtf.py`
+### Act 6a: Guardian Agent
 
----
+**Script:** `06a_mlflow_guardian.py`
 
-### Demo 3: Full Over-Architected Pipeline — ~100 lines
+**Architecture:** MLflow `ChatAgent` → ResponsesAgent → Tools:
+- `inspect_table` — row counts, snapshots, file counts
+- `check_quality` — null rates, freshness, duplicate detection
+- `run_maintenance` — trigger compaction, snapshot expiry
+- `query_table` — arbitrary SQL for investigation
 
-**File:** `scripts/demos/overarchitected/03_full_overarchitected.py`
+**Every action traced via MLflow Tracing.** LLM calls routed through AI Gateway.
 
-**Goal:** VARIANT + Recursive CTE + Collation + SDP-style gold tables. All features in one script.
+**Key line:** "An agent that runs Iceberg compaction for you. Every tool call traced."
 
-**Run:** `docker exec spark-master-41 /opt/spark/bin/spark-submit /scripts/demos/overarchitected/03_full_overarchitected.py`
+### Act 6b: Analyst Agent
 
----
+**Script:** `06b_mlflow_analyst.py`
 
-## 5. Improv-Ready "Challenge" Ideas
+Natural language → SQL → results. "What's the busiest city for orders?" → generates and executes the query.
 
-### RTM-Specific Talking Points (use when RTM comes up)
+**Key line:** "Ask a question in English. Get SQL and results."
 
-| Curveball | Your move |
-|-----------|-----------|
-| **"Can you make this lower latency?"** | RTM. One line change: `.trigger(realTime='5 minutes')` |
-| **"How does this compare to Flink?"** | "Same API, same engine, 92% faster in benchmarks. No second system to manage." |
-| **"What about stateful streaming?"** | "Stateless is GA in OSS Spark 4.1. Stateful is coming — already in preview on Databricks." |
+### Act 6c: Autopilot Agent
 
-### Challenge 1: "Can you add real-time streaming to this?"
+**Script:** `06c_mlflow_autopilot.py`
 
-**Solution:** Use existing `test-streaming-iceberg.py` pattern. Kafka source → parse JSON → watermark → Iceberg sink with `fanout-enabled`. Start producer in background. For sub-second latency: add RTM — `.trigger(realTime='5 minutes')`.
+Autonomous monitoring loop: detect data drift → investigate → compact → alert. Runs continuously.
 
-**Talking point:** "We'll add a Kafka source, parse the JSON, apply a 10-minute watermark for late data, and write to the same Iceberg table. Exactly-once via checkpointing. For sub-second latency? One line: `.trigger(realTime='5 minutes')`."
+```bash
+python 06c_mlflow_autopilot.py --monitor --interval 30
+```
 
----
+**Key line:** "Set it and forget it. The lakehouse manages itself."
 
-### Challenge 2: "What if the order body schema changes?"
+### MLflow LLM Configuration
+```bash
+# Anthropic (default)
+export ANTHROPIC_API_KEY=sk-...
 
-**Solution:** VARIANT type. `parse_json(body)` stores any JSON; `variant_get(body, '$.new_field', 'string')` extracts new fields without migration.
-
-**Talking point:** "With VARIANT, we don't need a fixed schema. New event types or fields just work. Shredding keeps hot paths fast."
-
----
-
-### Challenge 3: "Can you add case-insensitive brand search?"
-
-**Solution:** Collation. `WHERE name COLLATE utf8_lcase LIKE '%pizza%'` matches "Pizza Planet", "pizza", etc.
-
-**Talking point:** "Spark 4.1 collation. One keyword change and we get locale-aware, case-insensitive matching."
-
----
-
-### Challenge 4: "Show me the full event chain for an order."
-
-**Solution:** Recursive CTE joining on `(order_id, sequence)` to walk from event 0 → 1 → 2 → ….
-
-**Talking point:** "Recursive CTE—new in Spark 4.1. We treat events as a graph and traverse the chain."
+# Or local Ollama
+export LLM_PROVIDER=openai
+export LLM_MODEL=qwen2.5:14b
+export OPENAI_BASE_URL=http://localhost:11434/v1
+```
 
 ---
 
-### Challenge 5: "Can you make this declarative instead of imperative?"
+## Improv Quick Reference
 
-**Solution:** SDP. Show `@dp.materialized_view` decorators, `spark.table()` dependencies, and `spark-pipelines run`. No explicit write order.
-
-**Talking point:** "Spark Declarative Pipelines. We define WHAT each table contains. Spark figures out HOW and in what order to run."
+| Curveball | Act | Response |
+|-----------|-----|----------|
+| "Add real-time streaming" | 4b | Kafka → watermark → Iceberg. For sub-second: `.trigger(realTime='5 minutes')` |
+| "Schema changes" | 3 | VARIANT. `parse_json` + `variant_get`. No migration. |
+| "Make it declarative" | 4a | SDP. `@dp.materialized_view`. Add table, re-run. Zero execution changes. |
+| "Case-insensitive search" | 3 | `COLLATE utf8_lcase`. One keyword. |
+| "Event chain" | 3 | Recursive CTE. Walk `(order_id, sequence)`. |
+| "Schedule this" | 5a | Airflow DAG wraps `spark-pipelines run`. |
+| "Remote access" | 5b | Spark Connect. `pip install pyspark-client`. gRPC, no JVM. |
+| "Scale to prod" | 5c | Same code, `--master k8s://`. |
+| "Can AI manage it?" | 6a | MLflow Guardian. Inspects, checks quality, runs maintenance. |
+| "Query in English" | 6b | MLflow Analyst. NL → SQL → results. |
+| "Run itself?" | 6c | MLflow Autopilot. Continuous monitoring loop. |
+| "What LLM?" | 6 | AI Gateway → Anthropic, OpenAI, or local Ollama. |
+| "Flink?" | 4b | "Same API, 92% faster. No second engine." |
+| "Unity Catalog?" | 2 | UC 0.4.0. Catalog-managed commits. Multi-engine. |
 
 ---
 
 ## Quick Reference: Ports & Commands
 
-| Service | Port | Command |
-|---------|------|---------|
-| Spark 4.1 Master | 7078 | `docker exec spark-master-41 /opt/spark/bin/spark-submit ...` |
-| Spark 4.1 UI | 8082 | http://localhost:8082 |
-| Kafka | 9092 | `localhost:9092` |
-| SeaweedFS S3 | 8333 | `s3a://lakehouse/warehouse` |
-| PostgreSQL | 5432 | `localhost:5432` |
+| Service | Port |
+|---------|------|
+| Spark 4.1 Master | 7078 (UI: 8082) |
+| Spark Connect | 15002 |
+| Kafka | 9092 |
+| PostgreSQL | 5432 |
+| SeaweedFS S3 | 8333 |
+| Unity Catalog | 8080 |
+| Airflow | 8085 |
+| MLflow | 5000 |
+| Ollama | 11434 |
 
-**Prerequisites:**
-```bash
-./lakehouse start all
-./lakehouse testdata generate --days 7
-./lakehouse testdata load
-```
+## Companion Guides
+
+Deep-dive references in `docs/guides/overarchitected/`:
+
+| Guide | Acts |
+|-------|------|
+| `companion_guide_otf_portability.md` | 1 |
+| `companion_guide_unity_catalog_oss.md` | 2 |
+| `companion_guide_spark41_features.md` | 3 |
+| `companion_guide_sdp_rtm.md` | 4a, 4b |
+| `companion_guide_enterprise_scaling.md` | 5a, 5b, 5c |
+| `companion_guide_mlflow_agents.md` | 6a, 6b, 6c |

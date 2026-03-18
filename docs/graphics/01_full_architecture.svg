@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 920" font-family="'Segoe UI', Arial, Helvetica, sans-serif">
+  <defs>
+    <filter id="s"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.08"/></filter>
+    <marker id="ao" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6z" fill="#E25A1C"/></marker>
+    <marker id="ab" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6z" fill="#3182CE"/></marker>
+    <marker id="ag" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6z" fill="#38A169"/></marker>
+    <marker id="ap" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6z" fill="#805AD5"/></marker>
+    <marker id="ay" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6z" fill="#718096"/></marker>
+  </defs>
+
+  <rect width="1200" height="920" fill="#FFFFFF"/>
+  <rect y="0" width="1200" height="5" fill="#E25A1C"/>
+
+  <!-- Title -->
+  <text x="600" y="40" text-anchor="middle" font-size="24" font-weight="bold" fill="#1A202C">Lakehouse-at-Home: The Over-Architected Stack</text>
+  <text x="600" y="62" text-anchor="middle" font-size="13" fill="#718096">Everything you need to rebuild Databricks from open-source components</text>
+
+  <!-- ???????? LAYER 1: DATA INGESTION ???????? -->
+  <text x="60" y="98" font-size="11" font-weight="600" fill="#718096" letter-spacing="1">DATA INGESTION</text>
+  <line x1="60" y1="104" x2="1140" y2="104" stroke="#E2E8F0" stroke-width="1"/>
+
+  <rect x="100" y="115" width="280" height="50" rx="8" fill="#F7FAFC" stroke="#E2E8F0" stroke-width="1" filter="url(#s)"/>
+  <text x="240" y="140" text-anchor="middle" font-size="14" font-weight="600" fill="#1A202C">Kafka 3.6</text>
+  <text x="240" y="156" text-anchor="middle" font-size="10" fill="#718096">port 9092  |  streaming events</text>
+
+  <rect x="460" y="115" width="280" height="50" rx="8" fill="#F7FAFC" stroke="#E2E8F0" stroke-width="1" filter="url(#s)"/>
+  <text x="600" y="140" text-anchor="middle" font-size="14" font-weight="600" fill="#1A202C">REST APIs</text>
+  <text x="600" y="156" text-anchor="middle" font-size="10" fill="#718096">batch ingestion</text>
+
+  <rect x="820" y="115" width="280" height="50" rx="8" fill="#F7FAFC" stroke="#E2E8F0" stroke-width="1" filter="url(#s)"/>
+  <text x="960" y="140" text-anchor="middle" font-size="14" font-weight="600" fill="#1A202C">Files / Parquet</text>
+  <text x="960" y="156" text-anchor="middle" font-size="10" fill="#718096">batch data</text>
+
+  <!-- Arrows: ingestion -> Spark -->
+  <line x1="240" y1="165" x2="240" y2="195" stroke="#E25A1C" stroke-width="1.5" marker-end="url(#ao)"/>
+  <line x1="600" y1="165" x2="600" y2="195" stroke="#E25A1C" stroke-width="1.5" marker-end="url(#ao)"/>
+  <line x1="960" y1="165" x2="960" y2="195" stroke="#E25A1C" stroke-width="1.5" marker-end="url(#ao)"/>
+
+  <!-- ???????? LAYER 2: COMPUTE ???????? -->
+  <rect x="60" y="200" width="1080" height="290" rx="10" fill="#FFF8F5" stroke="#E25A1C" stroke-width="2" filter="url(#s)"/>
+  <text x="600" y="228" text-anchor="middle" font-size="20" font-weight="bold" fill="#E25A1C">Apache Spark 4.1</text>
+  <text x="600" y="246" text-anchor="middle" font-size="11" fill="#718096">port 7078  |  UI 8082  |  The engine that runs everything</text>
+
+  <!-- Sub-box: SDP -->
+  <rect x="85" y="260" width="250" height="80" rx="6" fill="#FFFFFF" stroke="#E25A1C" stroke-width="1"/>
+  <text x="210" y="282" text-anchor="middle" font-size="12" font-weight="600" fill="#E25A1C">Declarative Pipelines (SDP)</text>
+  <text x="210" y="300" text-anchor="middle" font-size="10" fill="#4A5568">@dp.materialized_view (batch)</text>
+  <text x="210" y="314" text-anchor="middle" font-size="10" fill="#4A5568">@dp.table (streaming)</text>
+  <text x="210" y="328" text-anchor="middle" font-size="10" fill="#E25A1C">spark-pipelines run</text>
+
+  <!-- Sub-box: RTM -->
+  <rect x="355" y="260" width="230" height="80" rx="6" fill="#FFFFFF" stroke="#E25A1C" stroke-width="1"/>
+  <text x="470" y="282" text-anchor="middle" font-size="12" font-weight="600" fill="#E25A1C">Real-Time Mode (RTM)</text>
+  <text x="470" y="300" text-anchor="middle" font-size="10" fill="#4A5568">.trigger(realTime='5 min')</text>
+  <text x="470" y="314" text-anchor="middle" font-size="10" fill="#4A5568">Sub-second streaming latency</text>
+  <text x="470" y="328" text-anchor="middle" font-size="10" fill="#E25A1C">Outperforms Flink</text>
+
+  <!-- Sub-box: Spark Connect -->
+  <rect x="605" y="260" width="230" height="80" rx="6" fill="#FFFFFF" stroke="#E25A1C" stroke-width="1"/>
+  <text x="720" y="282" text-anchor="middle" font-size="12" font-weight="600" fill="#E25A1C">Spark Connect</text>
+  <text x="720" y="300" text-anchor="middle" font-size="10" fill="#4A5568">Thin gRPC client  |  port 15002</text>
+  <text x="720" y="314" text-anchor="middle" font-size="10" fill="#4A5568">No JVM on client side</text>
+  <text x="720" y="328" text-anchor="middle" font-size="10" fill="#E25A1C">pip install pyspark-client</text>
+
+  <!-- Sub-box: Spark 4.1 Features -->
+  <rect x="855" y="260" width="260" height="80" rx="6" fill="#FFFFFF" stroke="#E25A1C" stroke-width="1"/>
+  <text x="985" y="282" text-anchor="middle" font-size="12" font-weight="600" fill="#E25A1C">Spark 4.1 Features</text>
+  <text x="985" y="300" text-anchor="middle" font-size="10" fill="#4A5568">VARIANT type (native JSON)</text>
+  <text x="985" y="314" text-anchor="middle" font-size="10" fill="#4A5568">Recursive CTEs  |  Collation</text>
+  <text x="985" y="328" text-anchor="middle" font-size="10" fill="#4A5568">Python UDTFs  |  Approx Sketches</text>
+
+  <!-- Medallion flow -->
+  <rect x="200" y="360" width="130" height="36" rx="6" fill="#FED7AA" stroke="#E25A1C" stroke-width="1"/>
+  <text x="265" y="383" text-anchor="middle" font-size="12" font-weight="600" fill="#9C4221">Bronze</text>
+
+  <line x1="330" y1="378" x2="370" y2="378" stroke="#E25A1C" stroke-width="1.5" marker-end="url(#ao)"/>
+
+  <rect x="380" y="360" width="130" height="36" rx="6" fill="#FEFCBF" stroke="#D69E2E" stroke-width="1"/>
+  <text x="445" y="383" text-anchor="middle" font-size="12" font-weight="600" fill="#975A16">Silver</text>
+
+  <line x1="510" y1="378" x2="550" y2="378" stroke="#E25A1C" stroke-width="1.5" marker-end="url(#ao)"/>
+
+  <rect x="560" y="360" width="130" height="36" rx="6" fill="#C6F6D5" stroke="#38A169" stroke-width="1"/>
+  <text x="625" y="383" text-anchor="middle" font-size="12" font-weight="600" fill="#276749">Gold</text>
+
+  <text x="820" y="383" font-size="10" fill="#718096">Medallion Architecture</text>
+
+  <!-- Thin clients callout -->
+  <rect x="920" y="410" width="190" height="34" rx="6" fill="#FFF5F0" stroke="#E25A1C" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="1015" y="432" text-anchor="middle" font-size="10" fill="#E25A1C">Remote thin clients via gRPC</text>
+  <line x1="835" y1="310" x2="920" y2="427" stroke="#E25A1C" stroke-width="1" stroke-dasharray="3,3"/>
+
+  <!-- ???????? LAYER 3: STORAGE AND CATALOG ???????? -->
+  <text x="60" y="518" font-size="11" font-weight="600" fill="#718096" letter-spacing="1">STORAGE + CATALOG</text>
+  <line x1="60" y1="524" x2="1140" y2="524" stroke="#E2E8F0" stroke-width="1"/>
+
+  <!-- Spark -> Storage arrows -->
+  <line x1="250" y1="490" x2="250" y2="538" stroke="#3182CE" stroke-width="1.5" marker-end="url(#ab)"/>
+  <line x1="600" y1="490" x2="600" y2="538" stroke="#3182CE" stroke-width="1.5" marker-end="url(#ab)"/>
+  <line x1="950" y1="490" x2="950" y2="538" stroke="#3182CE" stroke-width="1.5" marker-end="url(#ab)"/>
+
+  <rect x="100" y="540" width="300" height="70" rx="8" fill="#EBF8FF" stroke="#3182CE" stroke-width="1.5" filter="url(#s)"/>
+  <text x="250" y="566" text-anchor="middle" font-size="14" font-weight="600" fill="#3182CE">Apache Iceberg 1.10</text>
+  <text x="250" y="584" text-anchor="middle" font-size="11" fill="#2C5282">ACID table format</text>
+  <text x="250" y="600" text-anchor="middle" font-size="10" fill="#718096">Time travel | Schema evo | Partition evo</text>
+
+  <rect x="450" y="540" width="300" height="70" rx="8" fill="#EBF8FF" stroke="#3182CE" stroke-width="1.5" filter="url(#s)"/>
+  <text x="600" y="566" text-anchor="middle" font-size="14" font-weight="600" fill="#3182CE">Unity Catalog OSS 0.4.0</text>
+  <text x="600" y="584" text-anchor="middle" font-size="11" fill="#2C5282">REST catalog  |  credential vending</text>
+  <text x="600" y="600" text-anchor="middle" font-size="10" fill="#718096">Catalog-managed commits  |  port 8080</text>
+
+  <rect x="800" y="540" width="300" height="70" rx="8" fill="#EBF8FF" stroke="#3182CE" stroke-width="1.5" filter="url(#s)"/>
+  <text x="950" y="566" text-anchor="middle" font-size="14" font-weight="600" fill="#3182CE">SeaweedFS</text>
+  <text x="950" y="584" text-anchor="middle" font-size="11" fill="#2C5282">S3-compatible object storage</text>
+  <text x="950" y="600" text-anchor="middle" font-size="10" fill="#718096">Iceberg data files  |  port 8333</text>
+
+  <!-- Iceberg -> SeaweedFS -->
+  <line x1="400" y1="575" x2="450" y2="575" stroke="#3182CE" stroke-width="1" stroke-dasharray="4,2"/>
+  <line x1="750" y1="575" x2="800" y2="575" stroke="#3182CE" stroke-width="1" stroke-dasharray="4,2"/>
+
+  <!-- ???????? METADATA LAYER ???????? -->
+  <rect x="380" y="640" width="440" height="50" rx="8" fill="#F7FAFC" stroke="#718096" stroke-width="1" filter="url(#s)"/>
+  <text x="600" y="663" text-anchor="middle" font-size="13" font-weight="600" fill="#4A5568">PostgreSQL 16</text>
+  <text x="600" y="680" text-anchor="middle" font-size="10" fill="#718096">port 5432  |  metadata for Unity Catalog + MLflow tracking store</text>
+
+  <!-- UC -> PostgreSQL -->
+  <line x1="600" y1="610" x2="600" y2="640" stroke="#718096" stroke-width="1.5" marker-end="url(#ay)"/>
+
+  <!-- ???????? LAYER 4: ORCHESTRATION + INTELLIGENCE ???????? -->
+  <text x="60" y="722" font-size="11" font-weight="600" fill="#718096" letter-spacing="1">ORCHESTRATION + INTELLIGENCE</text>
+  <line x1="60" y1="728" x2="1140" y2="728" stroke="#E2E8F0" stroke-width="1"/>
+
+  <!-- Airflow -->
+  <rect x="60" y="740" width="350" height="130" rx="8" fill="#F0FFF4" stroke="#38A169" stroke-width="1.5" filter="url(#s)"/>
+  <text x="235" y="766" text-anchor="middle" font-size="15" font-weight="bold" fill="#38A169">Apache Airflow 3.1</text>
+  <text x="235" y="784" text-anchor="middle" font-size="11" fill="#276749">The Orchestration Backbone  |  port 8085</text>
+  <line x1="80" y1="793" x2="390" y2="793" stroke="#C6F6D5" stroke-width="1"/>
+  <text x="235" y="810" text-anchor="middle" font-size="10" fill="#4A5568">SDP pipelines  |  preflight / verify / maintain</text>
+  <text x="235" y="826" text-anchor="middle" font-size="10" fill="#4A5568">Streaming lifecycle  |  Iceberg maintenance</text>
+  <text x="235" y="842" text-anchor="middle" font-size="10" fill="#4A5568">MLflow agent scheduling  |  the glue</text>
+  <text x="235" y="862" text-anchor="middle" font-size="9" font-weight="600" fill="#38A169">ORCHESTRATION</text>
+
+  <!-- MLflow -->
+  <rect x="430" y="740" width="350" height="130" rx="8" fill="#FAF5FF" stroke="#805AD5" stroke-width="1.5" filter="url(#s)"/>
+  <text x="605" y="766" text-anchor="middle" font-size="15" font-weight="bold" fill="#805AD5">MLflow 3.1</text>
+  <text x="605" y="784" text-anchor="middle" font-size="11" fill="#553C9A">AI Gateway  |  Tracing  |  port 5000</text>
+  <line x1="450" y1="793" x2="760" y2="793" stroke="#E9D8FD" stroke-width="1"/>
+  <text x="605" y="810" text-anchor="middle" font-size="10" fill="#4A5568">Guardian agent  (table health)</text>
+  <text x="605" y="826" text-anchor="middle" font-size="10" fill="#4A5568">Analyst agent  (NL-to-SQL)</text>
+  <text x="605" y="842" text-anchor="middle" font-size="10" fill="#4A5568">Autopilot agent  (autonomous monitoring)</text>
+  <text x="605" y="862" text-anchor="middle" font-size="9" font-weight="600" fill="#805AD5">INTELLIGENCE</text>
+
+  <!-- Kubernetes -->
+  <rect x="800" y="740" width="340" height="130" rx="8" fill="#F7FAFC" stroke="#718096" stroke-width="1.5" filter="url(#s)"/>
+  <text x="970" y="766" text-anchor="middle" font-size="15" font-weight="bold" fill="#4A5568">Kubernetes</text>
+  <text x="970" y="784" text-anchor="middle" font-size="11" fill="#718096">Production scaling  |  same code</text>
+  <line x1="820" y1="793" x2="1120" y2="793" stroke="#E2E8F0" stroke-width="1"/>
+  <text x="970" y="810" text-anchor="middle" font-size="10" fill="#4A5568">spark-submit --master k8s://</text>
+  <text x="970" y="826" text-anchor="middle" font-size="10" fill="#4A5568">Docker Compose for dev</text>
+  <text x="970" y="842" text-anchor="middle" font-size="10" fill="#4A5568">Kubernetes for production</text>
+  <text x="970" y="862" text-anchor="middle" font-size="9" font-weight="600" fill="#718096">INFRASTRUCTURE</text>
+
+  <!-- ???????? CONNECTION ARROWS ???????? -->
+
+  <!-- Airflow -> Spark (orchestrates) -->
+  <path d="M 235 740 L 235 715 L 75 715 L 75 490" stroke="#38A169" stroke-width="1.5" fill="none" marker-end="url(#ag)"/>
+  <text x="78" y="620" font-size="9" fill="#38A169">orchestrates</text>
+
+  <!-- Airflow -> MLflow (agent scheduling) -->
+  <line x1="410" y1="805" x2="430" y2="805" stroke="#38A169" stroke-width="1.5" marker-end="url(#ag)"/>
+
+  <!-- MLflow -> PostgreSQL (tracking) -->
+  <line x1="605" y1="740" x2="605" y2="690" stroke="#805AD5" stroke-width="1.5" marker-end="url(#ap)"/>
+  <text x="620" y="720" font-size="9" fill="#805AD5">tracking</text>
+
+  <!-- Footer -->
+  <rect y="895" width="1200" height="25" fill="#F7FAFC"/>
+  <text x="600" y="912" text-anchor="middle" font-size="10" fill="#A0AEC0">lakehouse-at-home  |  github.com/lisancao/lakehouse-at-home  |  All open-source components</text>
+</svg>

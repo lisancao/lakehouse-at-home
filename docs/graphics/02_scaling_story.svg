@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
+  <defs>
+    <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.15"/>
+    </filter>
+    <filter id="dropShadowLight" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.1"/>
+    </filter>
+    <marker id="arrowGray" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <polygon points="0 0, 8 4, 0 8" fill="#CBD5E0"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="675" fill="#FFFFFF"/>
+
+  <!-- Title -->
+  <text x="600" y="42" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#1A202C">The Four-Part Scaling Story</text>
+  <text x="600" y="68" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="16" fill="#4A5568">From Docker Compose to Production - Same Pipeline Code</text>
+
+  <!-- Four quadrants - 4 columns -->
+  <!-- Quadrant 1: SDP - Scales Logic (orange) -->
+  <g filter="url(#dropShadow)">
+    <rect x="24" y="88" width="276" height="220" rx="8" fill="#FFF5F0" stroke="#E25A1C" stroke-width="2"/>
+  </g>
+  <!-- Gear/pipeline icon -->
+  <g transform="translate(162, 118)" fill="#E25A1C" stroke="#E25A1C" stroke-width="1.5">
+    <circle cx="0" cy="0" r="6" fill="#E25A1C"/>
+    <circle cx="0" cy="0" r="14" fill="none"/>
+    <rect x="-2" y="-18" width="4" height="6" rx="1"/>
+    <rect x="-2" y="12" width="4" height="6" rx="1"/>
+    <rect x="-18" y="-2" width="6" height="4" rx="1"/>
+    <rect x="12" y="-2" width="6" height="4" rx="1"/>
+    <rect x="-12" y="-12" width="5" height="5" rx="1" transform="rotate(45)"/>
+    <rect x="7" y="-12" width="5" height="5" rx="1" transform="rotate(-45)"/>
+    <rect x="7" y="7" width="5" height="5" rx="1" transform="rotate(45)"/>
+    <rect x="-12" y="7" width="5" height="5" rx="1" transform="rotate(-45)"/>
+  </g>
+  <text x="162" y="155" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="14" font-weight="700" fill="#E25A1C">SDP - Scales Logic</text>
+  <text x="162" y="178" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#718096">Before:</text>
+  <text x="162" y="196" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">Manual execution order,</text>
+  <text x="162" y="210" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">100 spark-submit calls</text>
+  <text x="162" y="232" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#718096">After:</text>
+  <text x="162" y="250" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">@dp.materialized_view -</text>
+  <text x="162" y="264" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">auto-deps, auto-execution</text>
+  <rect x="62" y="278" width="200" height="22" rx="6" fill="#E25A1C" opacity="0.12" stroke="#E25A1C" stroke-width="1"/>
+  <text x="162" y="293" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#E25A1C">1 table - 100 tables, zero code changes</text>
+
+  <!-- Quadrant 2: Airflow - Scales Orchestration (green) -->
+  <g filter="url(#dropShadow)">
+    <rect x="312" y="88" width="276" height="220" rx="8" fill="#F0FFF4" stroke="#38A169" stroke-width="2"/>
+  </g>
+  <!-- DAG icon -->
+  <g transform="translate(450, 118)">
+    <rect x="-14" y="-12" width="28" height="24" rx="3" fill="none" stroke="#38A169" stroke-width="2"/>
+    <circle cx="-6" cy="-4" r="3" fill="#38A169"/>
+    <circle cx="6" cy="-4" r="3" fill="#38A169"/>
+    <circle cx="0" cy="8" r="3" fill="#38A169"/>
+    <path d="M-6-4 L0 8 M6-4 L0 8 M-6-4 L6-4" stroke="#38A169" stroke-width="1.5" fill="none"/>
+  </g>
+  <text x="450" y="155" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="14" font-weight="700" fill="#38A169">Airflow - Scales Orchestration</text>
+  <text x="450" y="178" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#718096">Before:</text>
+  <text x="450" y="196" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">Cron jobs, shell scripts,</text>
+  <text x="450" y="210" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">no visibility</text>
+  <text x="450" y="232" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#718096">After:</text>
+  <text x="450" y="250" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">DAG: preflight -&gt; SDP -&gt; verify</text>
+  <text x="450" y="264" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">-&gt; maintain -&gt; agents</text>
+  <rect x="350" y="278" width="200" height="22" rx="6" fill="#38A169" opacity="0.12" stroke="#38A169" stroke-width="1"/>
+  <text x="450" y="293" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#38A169">Orchestrates everything: pipelines, streaming, agents</text>
+
+  <!-- Quadrant 3: Spark Connect - Scales Access (blue) -->
+  <g filter="url(#dropShadow)">
+    <rect x="600" y="88" width="276" height="220" rx="8" fill="#EBF8FF" stroke="#3182CE" stroke-width="2"/>
+  </g>
+  <!-- Network/thin client icon -->
+  <g transform="translate(738, 118)">
+    <circle cx="0" cy="-6" r="5" fill="#3182CE"/>
+    <circle cx="-10" cy="6" r="5" fill="#3182CE" opacity="0.7"/>
+    <circle cx="10" cy="6" r="5" fill="#3182CE" opacity="0.7"/>
+    <path d="M0-1 L-10 5 M0-1 L10 5 M-10 5 L10 5" stroke="#3182CE" stroke-width="1.5" fill="none"/>
+  </g>
+  <text x="738" y="155" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="14" font-weight="700" fill="#3182CE">Spark Connect - Scales Access</text>
+  <text x="738" y="178" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#718096">Before:</text>
+  <text x="738" y="196" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">Fat JVM client on</text>
+  <text x="738" y="210" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">every machine</text>
+  <text x="738" y="232" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#718096">After:</text>
+  <text x="738" y="250" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">Thin gRPC client,</text>
+  <text x="738" y="264" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">pip install pyspark-client</text>
+  <rect x="638" y="278" width="200" height="22" rx="6" fill="#3182CE" opacity="0.12" stroke="#3182CE" stroke-width="1"/>
+  <text x="738" y="293" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#3182CE">Multiple remote users, one cluster, no JVM</text>
+
+  <!-- Quadrant 4: Kubernetes - Scales Infrastructure (gray) -->
+  <g filter="url(#dropShadow)">
+    <rect x="888" y="88" width="276" height="220" rx="8" fill="#F7FAFC" stroke="#4A5568" stroke-width="2"/>
+  </g>
+  <!-- Containers icon -->
+  <g transform="translate(1026, 118)">
+    <rect x="-16" y="-10" width="14" height="20" rx="2" fill="#4A5568" opacity="0.4"/>
+    <rect x="-2" y="-6" width="14" height="20" rx="2" fill="#4A5568" opacity="0.7"/>
+    <rect x="12" y="-10" width="14" height="20" rx="2" fill="#4A5568"/>
+  </g>
+  <text x="1026" y="155" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="14" font-weight="700" fill="#4A5568">Kubernetes - Scales Infrastructure</text>
+  <text x="1026" y="178" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#718096">Before:</text>
+  <text x="1026" y="196" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">Docker Compose on</text>
+  <text x="1026" y="210" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">one machine</text>
+  <text x="1026" y="232" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#718096">After:</text>
+  <text x="1026" y="250" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#2D3748">spark-submit --master k8s://</text>
+  <rect x="926" y="278" width="200" height="22" rx="6" fill="#4A5568" opacity="0.12" stroke="#4A5568" stroke-width="1"/>
+  <text x="1026" y="293" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="10" font-weight="600" fill="#4A5568">Same code, same pipeline, production scale</text>
+
+  <!-- Bottom flow section -->
+  <rect x="24" y="330" width="1152" height="160" rx="8" fill="#F7FAFC" stroke="#E2E8F0" stroke-width="1" filter="url(#dropShadowLight)"/>
+  <text x="600" y="358" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="15" font-weight="600" fill="#2D3748">Same pipeline code through all of it</text>
+
+  <!-- Horizontal flow line -->
+  <line x1="120" y1="410" x2="1080" y2="410" stroke="#E25A1C" stroke-width="2" stroke-linecap="round"/>
+  <!-- Arrow markers along the flow -->
+  <polygon points="240,410 228,405 228,415" fill="#E25A1C"/>
+  <polygon points="480,410 468,405 468,415" fill="#E25A1C"/>
+  <polygon points="720,410 708,405 708,415" fill="#E25A1C"/>
+  <polygon points="960,410 948,405 948,415" fill="#E25A1C"/>
+
+  <!-- Flow stage labels -->
+  <g transform="translate(120, 420)">
+    <rect x="0" y="0" width="180" height="44" rx="6" fill="#FFF5F0" stroke="#E25A1C" stroke-width="1"/>
+    <text x="90" y="22" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="13" font-weight="600" fill="#E25A1C">Docker Compose</text>
+    <text x="90" y="36" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#4A5568">(dev)</text>
+  </g>
+  <g transform="translate(360, 420)">
+    <rect x="0" y="0" width="180" height="44" rx="6" fill="#F0FFF4" stroke="#38A169" stroke-width="1"/>
+    <text x="90" y="22" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="13" font-weight="600" fill="#38A169">Airflow DAGs</text>
+    <text x="90" y="36" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#4A5568">(orchestration)</text>
+  </g>
+  <g transform="translate(600, 420)">
+    <rect x="0" y="0" width="180" height="44" rx="6" fill="#EBF8FF" stroke="#3182CE" stroke-width="1"/>
+    <text x="90" y="22" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="13" font-weight="600" fill="#3182CE">Connect Clients</text>
+    <text x="90" y="36" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#4A5568">(access)</text>
+  </g>
+  <g transform="translate(840, 420)">
+    <rect x="0" y="0" width="180" height="44" rx="6" fill="#F7FAFC" stroke="#4A5568" stroke-width="1"/>
+    <text x="90" y="22" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="13" font-weight="600" fill="#4A5568">Kubernetes</text>
+    <text x="90" y="36" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="11" fill="#4A5568">(prod)</text>
+  </g>
+
+  <!-- Flow arrows between boxes -->
+  <path d="M300 432 L360 432" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrowGray)"/>
+  <path d="M540 432 L600 432" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrowGray)"/>
+  <path d="M780 432 L840 432" stroke="#CBD5E0" stroke-width="1.5" marker-end="url(#arrowGray)"/>
+</svg>
