@@ -1265,7 +1265,7 @@ cmd_setup() {
 
     # Step 7: Check disk space
     echo -e "\n${YELLOW}6. Checking disk space...${NC}"
-    local free_gb=$(gdf -BG "$PROJECT_ROOT" | tail -1 | awk '{print $4}' | tr -d 'G')
+    local free_gb=$($DF_TOOL -BG "$PROJECT_ROOT" | tail -1 | awk '{print $4}' | tr -d 'G')
     if [ "$free_gb" -lt 10 ] 2>/dev/null; then
         echo -e "${YELLOW}!${NC} Low disk space: ${free_gb}GB free (10GB+ recommended)"
     else
