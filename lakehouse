@@ -37,6 +37,11 @@ check_cmd() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Browse Iceberg data
+browse_tables() {
+	docker exec -it spark-master-41 sh -c "/opt/spark/bin/spark-sql -e \"select * from iceberg.bronze.orders limit 10;\""
+}
+
 # Setup PostgreSQL database (create if not exists)
 setup_postgres() {
     local pg_user="${POSTGRES_USER:-postgres}"
@@ -1313,6 +1318,7 @@ cmd_help() {
     echo "  producer            Start Kafka event producer"
     echo "  consumer            Start Spark streaming consumer"
     echo "  testdata <cmd>      Test data generation (generate|stream|load|stats|clean)"
+    echo "  browsedata          Browse Iceberg tables, if any"
     echo "  help                Show this help"
     echo ""
     echo "Options:"
@@ -1364,6 +1370,7 @@ cmd_help() {
     echo "  lakehouse start unity-catalog"
     echo "  lakehouse testdata generate --days 30"
     echo "  lakehouse testdata stream --speed 100"
+    echo "  lakehouse browsedata"
 }
 
 # Main
@@ -1412,6 +1419,9 @@ case ${1:-help} in
     testdata)
         cmd_testdata "${@:2}"
         ;;
+	browsedata)
+		browse_tables
+		;;
     help|*)
         cmd_help
         ;;
