@@ -38,6 +38,6 @@ services:
     command: >
       bash -c "
         sleep 5 &&
-        /opt/spark/sbin/start-worker.sh spark://localhost:7078 --webui-port 8083 &&
+        /opt/spark/sbin/start-worker.sh spark://host.docker.internal:7078 --webui-port 8083 &&
         tail -f /opt/spark/logs/*
         "
