@@ -1,0 +1,9 @@
+name: overarchitected_demo
+libraries:
+  - glob:
+      include: sdp_demo.py
+catalog: iceberg
+database: bronze
+storage: file:///tmp/overarchitected-checkpoint
+configuration:
+  spark.sql.shuffle.partitions: "8"

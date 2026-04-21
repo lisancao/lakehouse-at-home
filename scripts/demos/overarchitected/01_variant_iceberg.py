@@ -59,25 +59,25 @@ def main():
     df = df.withColumn("event_timestamp", f.to_timestamp(f.regexp_replace("ts", "T", " ")))
 
     # VARIANT: parse_json (Spark 4.1) - fallback to from_json if unavailable
+    # Use try_parse_json to handle malformed JSON (trailing commas etc.) gracefully
     try:
-        df_variant = df.withColumn("body_variant", f.parse_json("body"))
-        print("\n[VARIANT] Using parse_json() -> VARIANT type")
+        df_variant = df.withColumn("body_variant", f.try_parse_json("body"))
+        print("\n[VARIANT] Using try_parse_json() -> VARIANT type")
     except AttributeError:
         # Fallback: use from_json with generic schema
-        from pyspark.sql.types import MapType, StringType as St
         df_variant = df.withColumn("body_variant", f.from_json("body", "map<string,string>"))
         print("\n[FALLBACK] Using from_json (VARIANT not available in this build)")
 
-    # Extract fields - use expr for variant_get when available
+    # Extract fields - use try_variant_get for safe extraction
     try:
         df_extracted = df_variant.withColumn(
-            "brand_id", f.expr("variant_get(body_variant, '$.brand_id', 'int')")
+            "brand_id", f.expr("try_variant_get(body_variant, '$.brand_id', 'int')")
         ).withColumn(
-            "total", f.expr("variant_get(body_variant, '$.total', 'double')")
+            "total", f.expr("try_variant_get(body_variant, '$.total', 'double')")
         ).withColumn(
             "driver_id", f.expr("try_variant_get(body_variant, '$.driver_id', 'string')")
         )
-        print("[VARIANT] Extracted brand_id, total, driver_id via variant_get()")
+        print("[VARIANT] Extracted brand_id, total, driver_id via try_variant_get()")
     except Exception:
         # Fallback: from_json with struct
         from pyspark.sql.types import StructType, StructField, IntegerType, DoubleType, StringType
@@ -93,6 +93,10 @@ def main():
             f.col("body_parsed.driver_id").alias("driver_id"),
         ).drop("body_parsed")
         print("[FALLBACK] Extracted via from_json + struct")
+
+    # Drop VARIANT column before Iceberg write (Iceberg v2 doesn't support VARIANT type)
+    if "body_variant" in df_extracted.columns:
+        df_extracted = df_extracted.drop("body_variant")
 
     # Create namespace and table
     spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg.overarch")

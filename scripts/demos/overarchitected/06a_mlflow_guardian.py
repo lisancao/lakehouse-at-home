@@ -30,15 +30,16 @@ Run:
     mlflow models serve -m runs:/<run_id>/guardian_agent -p 5001
 
 Prerequisites:
-    pip install mlflow>=3.1 anthropic openai pyspark
+    pip install mlflow>=3.1 openai pyspark
     ./lakehouse start all
     ./lakehouse testdata generate --days 7
     ./lakehouse testdata load
-    # Set ANTHROPIC_API_KEY or configure Ollama as fallback
+    # Uses Ollama (local OSS models) via OpenAI-compatible API. No API keys needed.
 """
 
 import os
 import json
+import uuid
 from datetime import datetime, timedelta
 
 # MLflow imports
@@ -46,9 +47,8 @@ import mlflow
 from mlflow.pyfunc import ChatAgent
 from mlflow.types.agent import (
     ChatAgentMessage,
-    ChatAgentParams,
     ChatAgentResponse,
-    ChatAgentChunk,
+    ChatContext,
 )
 
 # PySpark thin client
@@ -59,8 +59,9 @@ from pyspark.sql import SparkSession
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 SPARK_REMOTE = os.getenv("SPARK_REMOTE", None)  # sc://host:15002 for Connect
 SPARK_MASTER = os.getenv("SPARK_MASTER", "local[*]")
-LLM_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-4-5-20250514")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")  # or "openai" for Ollama
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen3-coder:30b")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")  # "openai" for Ollama-compatible API
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 
 
 def section(title):
@@ -336,86 +337,37 @@ class PipelineGuardianAgent(ChatAgent):
     @property
     def client(self):
         if self._client is None:
-            if LLM_PROVIDER == "anthropic":
-                import anthropic
-                self._client = anthropic.Anthropic()
-            else:
-                import openai
-                base_url = os.getenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
-                self._client = openai.OpenAI(base_url=base_url, api_key="ollama")
+            import openai
+            self._client = openai.OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
         return self._client
 
     def _call_llm(self, messages, tools=None):
-        """Call the LLM (Anthropic or OpenAI-compatible)."""
-        if LLM_PROVIDER == "anthropic":
-            # Convert to Anthropic format
-            system = SYSTEM_PROMPT
-            api_messages = []
-            for msg in messages:
-                if msg["role"] == "system":
-                    system = msg["content"]
-                else:
-                    api_messages.append(msg)
-
-            kwargs = {
-                "model": LLM_MODEL,
-                "max_tokens": 4096,
-                "system": system,
-                "messages": api_messages,
-            }
-            if tools:
-                # Convert OpenAI tool format to Anthropic format
-                anthropic_tools = []
-                for tool in tools:
-                    anthropic_tools.append({
-                        "name": tool["function"]["name"],
-                        "description": tool["function"]["description"],
-                        "input_schema": tool["function"]["parameters"],
-                    })
-                kwargs["tools"] = anthropic_tools
-
-            return self.client.messages.create(**kwargs)
-        else:
-            # OpenAI-compatible (Ollama, etc.)
-            kwargs = {
-                "model": LLM_MODEL,
-                "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + messages,
-                "max_tokens": 4096,
-            }
-            if tools:
-                kwargs["tools"] = tools
-            return self.client.chat.completions.create(**kwargs)
+        """Call the LLM via OpenAI-compatible API (Ollama)."""
+        kwargs = {
+            "model": LLM_MODEL,
+            "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+            "max_tokens": 4096,
+        }
+        if tools:
+            kwargs["tools"] = tools
+        return self.client.chat.completions.create(**kwargs)
 
     def _extract_response(self, response):
-        """Extract text and tool calls from LLM response."""
-        if LLM_PROVIDER == "anthropic":
-            text_parts = []
-            tool_calls = []
-            for block in response.content:
-                if block.type == "text":
-                    text_parts.append(block.text)
-                elif block.type == "tool_use":
-                    tool_calls.append({
-                        "id": block.id,
-                        "name": block.name,
-                        "arguments": block.input,
-                    })
-            return "\n".join(text_parts), tool_calls, response.stop_reason
-        else:
-            msg = response.choices[0].message
-            text = msg.content or ""
-            tool_calls = []
-            if msg.tool_calls:
-                for tc in msg.tool_calls:
-                    tool_calls.append({
-                        "id": tc.id,
-                        "name": tc.function.name,
-                        "arguments": json.loads(tc.function.arguments),
-                    })
-            return text, tool_calls, response.choices[0].finish_reason
+        """Extract text and tool calls from OpenAI-compatible response."""
+        msg = response.choices[0].message
+        text = msg.content or ""
+        tool_calls = []
+        if msg.tool_calls:
+            for tc in msg.tool_calls:
+                tool_calls.append({
+                    "id": tc.id,
+                    "name": tc.function.name,
+                    "arguments": json.loads(tc.function.arguments),
+                })
+        return text, tool_calls, response.choices[0].finish_reason
 
     @mlflow.trace
-    def predict(self, messages, params=None):
+    def predict(self, messages, context=None, custom_inputs=None):
         """Run the agent with tool-calling loop."""
         # Convert ChatAgentMessage to dicts
         conv = [{"role": m.role, "content": m.content} for m in messages]
@@ -433,61 +385,32 @@ class PipelineGuardianAgent(ChatAgent):
             if not tool_calls:
                 break
 
-            # Execute tool calls
-            if LLM_PROVIDER == "anthropic":
-                # Add assistant message with tool use
-                assistant_content = []
-                if text:
-                    assistant_content.append({"type": "text", "text": text})
-                for tc in tool_calls:
-                    assistant_content.append({
-                        "type": "tool_use",
-                        "id": tc["id"],
-                        "name": tc["name"],
-                        "input": tc["arguments"],
-                    })
-                conv.append({"role": "assistant", "content": assistant_content})
+            # Execute tool calls (OpenAI-compatible format)
+            conv.append({
+                "role": "assistant",
+                "content": text,
+                "tool_calls": [
+                    {"id": tc["id"], "type": "function",
+                     "function": {"name": tc["name"], "arguments": json.dumps(tc["arguments"])}}
+                    for tc in tool_calls
+                ],
+            })
+            for tc in tool_calls:
+                tool_fn = TOOLS[tc["name"]]["fn"]
+                with mlflow.start_span(name=f"tool:{tc['name']}") as span:
+                    span.set_inputs(tc["arguments"])
+                    result = tool_fn(**tc["arguments"])
+                    span.set_outputs(result)
 
-                # Execute and add results
-                for tc in tool_calls:
-                    tool_fn = TOOLS[tc["name"]]["fn"]
-                    with mlflow.start_span(name=f"tool:{tc['name']}") as span:
-                        span.set_inputs(tc["arguments"])
-                        result = tool_fn(**tc["arguments"])
-                        span.set_outputs(result)
-
-                    conv.append({
-                        "role": "user",
-                        "content": [{"type": "tool_result", "tool_use_id": tc["id"],
-                                     "content": json.dumps(result, default=str)}],
-                    })
-            else:
-                # OpenAI format
                 conv.append({
-                    "role": "assistant",
-                    "content": text,
-                    "tool_calls": [
-                        {"id": tc["id"], "type": "function",
-                         "function": {"name": tc["name"], "arguments": json.dumps(tc["arguments"])}}
-                        for tc in tool_calls
-                    ],
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": json.dumps(result, default=str),
                 })
-                for tc in tool_calls:
-                    tool_fn = TOOLS[tc["name"]]["fn"]
-                    with mlflow.start_span(name=f"tool:{tc['name']}") as span:
-                        span.set_inputs(tc["arguments"])
-                        result = tool_fn(**tc["arguments"])
-                        span.set_outputs(result)
-
-                    conv.append({
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": json.dumps(result, default=str),
-                    })
 
         final_text = "\n".join(all_text) if all_text else "No response generated."
         return ChatAgentResponse(
-            messages=[ChatAgentMessage(role="assistant", content=final_text)]
+            messages=[ChatAgentMessage(role="assistant", content=final_text, id=str(uuid.uuid4()))]
         )
 
 
@@ -496,20 +419,16 @@ def run_demo():
     """Run the Pipeline Guardian agent interactively."""
     section("MLflow Pipeline Guardian Agent")
 
-    # Set up MLflow tracking
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    # Set up MLflow tracking (optional — works without tracking server)
+    tracking_available = False
     try:
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
         mlflow.set_experiment("overarchitected-guardian")
+        tracking_available = True
     except Exception:
-        pass  # Tracking server may not be running
+        print("  MLflow tracking server not available — running without tracking.")
 
-    # Enable auto-tracing
-    if LLM_PROVIDER == "anthropic":
-        try:
-            mlflow.anthropic.autolog()
-        except Exception:
-            pass
-    else:
+    if tracking_available:
         try:
             mlflow.openai.autolog()
         except Exception:
@@ -535,32 +454,36 @@ def run_demo():
         print(f"{'═' * 60}")
 
         try:
-            with mlflow.start_run(run_name=f"guardian_demo_{i}"):
-                response = agent.predict(
-                    messages=[ChatAgentMessage(role="user", content=query)]
-                )
-                print(f"\n  Agent Response:")
-                print(f"  {'-' * 50}")
-                for msg in response.messages:
-                    print(f"  {msg.content}")
+            mlflow.end_run()
+            run_ctx = mlflow.start_run(run_name=f"guardian_demo_{i}") if tracking_available else None
+            if run_ctx:
+                run_ctx.__enter__()
+            response = agent.predict(
+                messages=[ChatAgentMessage(role="user", content=query)]
+            )
+            print(f"\n  Agent Response:")
+            print(f"  {'-' * 50}")
+            for msg in response.messages:
+                print(f"  {msg.content}")
+            if run_ctx:
+                run_ctx.__exit__(None, None, None)
         except Exception as e:
             print(f"  Error: {e}")
-            print(f"  (Is {LLM_PROVIDER} API key set? Is MLflow tracking server running?)")
+            import traceback; traceback.print_exc()
 
     # Log the agent model
-    section("Logging Agent to MLflow")
-    try:
-        with mlflow.start_run(run_name="guardian_agent_registration"):
-            mlflow.pyfunc.log_model(
-                artifact_path="guardian_agent",
-                python_model=agent,
-                registered_model_name="pipeline-guardian",
-            )
-            print("  Agent logged to MLflow model registry as 'pipeline-guardian'")
-            print("  Serve it: mlflow models serve -m models:/pipeline-guardian/latest -p 5001")
-    except Exception as e:
-        print(f"  Could not log model: {e}")
-        print("  (MLflow tracking server may not be running)")
+    if tracking_available:
+        section("Logging Agent to MLflow")
+        try:
+            with mlflow.start_run(run_name="guardian_agent_registration"):
+                mlflow.pyfunc.log_model(
+                    artifact_path="guardian_agent",
+                    python_model=agent,
+                    registered_model_name="pipeline-guardian",
+                )
+                print("  Agent logged to MLflow model registry as 'pipeline-guardian'")
+        except Exception as e:
+            print(f"  Could not log model: {e}")
 
 
 def main():

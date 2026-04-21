@@ -53,13 +53,13 @@ def main():
     ).limit(5000)
 
     try:
-        orders_variant = orders_ts.withColumn("body_variant", f.parse_json("body"))
+        orders_variant = orders_ts.withColumn("body_variant", f.try_parse_json("body"))
         orders_extracted = orders_variant.withColumn(
-            "brand_id", f.expr("variant_get(body_variant, '$.brand_id', 'int')")
+            "brand_id", f.expr("try_variant_get(body_variant, '$.brand_id', 'int')")
         ).withColumn(
-            "order_total", f.expr("variant_get(body_variant, '$.total', 'double')")
+            "order_total", f.expr("try_variant_get(body_variant, '$.total', 'double')")
         )
-        print("\n[1] VARIANT: Parsed body with parse_json + variant_get")
+        print("\n[1] VARIANT: Parsed body with try_parse_json + try_variant_get")
     except Exception:
         body_schema = StructType([
             StructField("brand_id", IntegerType(), True),
@@ -70,6 +70,10 @@ def main():
             f.col("body_parsed.total").alias("order_total"),
         ).drop("body_parsed")
         print("\n[1] FALLBACK: Parsed body with from_json")
+
+    # Drop VARIANT column before Iceberg write (Iceberg v2 doesn't support VARIANT type)
+    if "body_variant" in orders_extracted.columns:
+        orders_extracted = orders_extracted.drop("body_variant")
 
     # Join locations
     loc_lookup = dim_locations.select(

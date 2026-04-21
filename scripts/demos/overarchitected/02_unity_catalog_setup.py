@@ -22,7 +22,7 @@ Run:
     docker exec spark-master-41 /opt/spark/bin/spark-submit \
         --conf spark.sql.catalog.unity=org.apache.iceberg.spark.SparkCatalog \
         --conf spark.sql.catalog.unity.catalog-impl=org.apache.iceberg.rest.RESTCatalog \
-        --conf spark.sql.catalog.unity.uri=http://localhost:8080/api/2.1/unity-catalog/iceberg \
+        --conf spark.sql.catalog.unity.uri=http://localhost:8081/api/2.1/unity-catalog/iceberg \
         /scripts/demos/overarchitected/02_unity_catalog_setup.py
 
     # Or use the UC spark config:
@@ -41,7 +41,7 @@ from pyspark.sql import SparkSession
 import json
 
 # UC REST API base URL (default port)
-UC_BASE_URL = "http://localhost:8080"
+UC_BASE_URL = "http://localhost:8081"
 UC_API = f"{UC_BASE_URL}/api/2.1/unity-catalog"
 UC_ICEBERG_API = f"{UC_BASE_URL}/api/2.1/unity-catalog/iceberg"
 
@@ -95,23 +95,22 @@ def act2_setup_steps():
     section("STEP 1: Unity Catalog Setup (How Hard Is It?)")
 
     print("""
-  Holly asks: "How many steps to set up a catalog?"
+  Nick asks: "How hard is this to set up?"
 
-  Answer: 3 steps with Docker, 5 without.
+  Three commands:
 
-  WITH DOCKER (what we did):
-    1. docker compose -f docker-compose-unity-catalog.yml up -d
-    2. Configure server.properties (S3 endpoint, credentials)
-    3. Point Spark at UC: spark.sql.catalog.unity.uri=http://localhost:8080/...
+    1. Start the server:
+       docker compose -f docker-compose-unity-catalog.yml up -d
 
-  WITHOUT DOCKER:
-    1. Install Java 17
-    2. Clone unitycatalog repo
-    3. bin/start-uc-server
-    4. Configure server.properties
-    5. Point Spark at UC
+    2. Verify it's running:
+       curl http://localhost:8081/api/2.1/unity-catalog/catalogs
 
-  That's it. No Terraform. No cloud account. No 47-page setup guide.
+    3. Point Spark at it:
+       spark.sql.catalog.iceberg.catalog-impl = org.apache.iceberg.rest.RESTCatalog
+       spark.sql.catalog.iceberg.uri = http://localhost:8081/api/2.1/unity-catalog/iceberg
+
+  That's it. A default catalog called 'unity' ships out of the box.
+  No database migrations. No config files. No cloud account.
     """)
 
 
@@ -249,20 +248,20 @@ def act2_multi_engine():
   From DuckDB:
     INSTALL iceberg;
     LOAD iceberg;
-    ATTACH 'http://localhost:8080/api/2.1/unity-catalog/iceberg'
+    ATTACH 'http://localhost:8081/api/2.1/unity-catalog/iceberg'
       AS unity (TYPE ICEBERG);
     SELECT * FROM unity.bronze.orders LIMIT 5;
 
   From Trino:
     connector.name=iceberg
     iceberg.catalog.type=rest
-    iceberg.rest-catalog.uri=http://localhost:8080/api/2.1/unity-catalog/iceberg
+    iceberg.rest-catalog.uri=http://localhost:8081/api/2.1/unity-catalog/iceberg
 
   From Polars:
     import polars as pl
     df = pl.scan_iceberg(
         "unity.bronze.orders",
-        storage_options={"uri": "http://localhost:8080/..."}
+        storage_options={"uri": "http://localhost:8081/..."}
     )
 
   Same table. Same data. Same catalog. Different engines.

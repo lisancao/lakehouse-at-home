@@ -57,7 +57,7 @@ def act3_config_walkthrough(spark):
 
   # Option B: REST catalog (Unity Catalog)
   spark.sql.catalog.iceberg.catalog-impl          org.apache.iceberg.rest.RESTCatalog
-  spark.sql.catalog.iceberg.uri                   http://localhost:8080/api/2.1/unity-catalog/iceberg
+  spark.sql.catalog.iceberg.uri                   http://localhost:8081/api/2.1/unity-catalog/iceberg
 
   # ─── Storage (S3-compatible, points to SeaweedFS) ───
   spark.sql.catalog.iceberg.warehouse             s3a://lakehouse/warehouse

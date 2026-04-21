@@ -63,7 +63,7 @@ def main():
 
     # Build order_lifecycle (pivot) - need silver.order_lifecycle or create from orders
     # For demo: create minimal lifecycle from orders
-    from pyspark.sql.types import StructType, StructField, DoubleType
+    from pyspark.sql.types import StructType, StructField, IntegerType, DoubleType
     body_schema = StructType([
         StructField("brand_id", IntegerType(), True),
         StructField("total", DoubleType(), True),
@@ -100,9 +100,18 @@ def main():
     lifecycle.createOrReplaceTempView("order_lifecycle")
 
     # Part B: Python UDTF - explode order into event rows
-    from pyspark.sql.udtf import UDTF
+    from pyspark.sql.functions import udtf
 
-    @UDTF
+    from pyspark.sql.types import StructType, StructField, StringType, TimestampType, DoubleType, IntegerType as IT
+
+    @udtf(returnType=StructType([
+        StructField("order_id", StringType()),
+        StructField("event_type", StringType()),
+        StructField("event_ts", TimestampType()),
+        StructField("duration_mins", DoubleType()),
+        StructField("location_id", IT()),
+        StructField("city_name", StringType()),
+    ]))
     class OrderLifecycleExploder:
         def eval(self, order_id: str, created_at, delivered_at, location_id: int, city_name: str):
             if created_at is None:

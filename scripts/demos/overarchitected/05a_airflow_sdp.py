@@ -62,7 +62,7 @@ def act5a_operator_landscape():
   │                         │ Direct K8s pod management                  │
   └─────────────────────────┴───────────────────────────────────────────┘
 
-  No dedicated SDP operator exists yet (as of March 2026).
+  New DeclarativePipelinesOperator! Just merged in ;).
   SDP runs via SparkSubmitOperator wrapping `spark-pipelines run`.
   This is actually fine — SDP is built on top of spark-submit.
     """)
