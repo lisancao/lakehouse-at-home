@@ -403,7 +403,7 @@ def run_demo():
     tracking_available = False
     try:
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-        mlflow.set_experiment("overarchitected-autopilot")
+        mlflow.set_experiment("lakehouse-autopilot")
         tracking_available = True
     except Exception:
         print("  MLflow tracking server not available — running without tracking.")
@@ -441,7 +441,7 @@ def run_demo():
 
             try:
                 mlflow.end_run()
-            run_ctx = mlflow.start_run(run_name=f"autopilot_demo_{i}") if tracking_available else None
+                run_ctx = mlflow.start_run(run_name=f"autopilot_demo_{i}") if tracking_available else None
                 if run_ctx:
                     run_ctx.__enter__()
                 response = agent.predict(
