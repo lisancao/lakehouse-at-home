@@ -44,5 +44,34 @@ services:
       start_period: 15s
     restart: unless-stopped
 
+  mlflow-agent:
+    image: apache/spark:4.1.0-scala2.13-java21-python3-r-ubuntu
+    container_name: spark-mlflow-agent
+    user: root
+    network_mode: "host"
+    env_file: .env
+    environment:
+      - MLFLOW_TRACKING_URI=http://localhost:5000
+      - SPARK_MASTER=spark://localhost:7078
+      # Full OSS: GPT-OSS 20B via Ollama. No API keys needed.
+      - LLM_MODEL=gpt-oss:20b
+      - LLM_PROVIDER=openai
+      - OLLAMA_BASE_URL=http://localhost:11434/v1
+      - PYTHONPATH=/opt/spark/python:/opt/spark/python/lib/py4j-0.10.9.9-src.zip
+      - SPARK_HOME=/opt/spark
+    volumes:
+      - ./config/spark:/opt/spark/conf
+      - ./jars:/opt/spark/jars-extra
+      - ./scripts:/scripts
+      - ./data:/data
+    command: >
+      bash -c "
+        mkdir -p /opt/spark-data/logs &&
+        pip install --quiet mlflow>=3.1 openai &&
+        echo 'MLflow agent container ready. Using local OSS models via Ollama.' &&
+        tail -f /dev/null
+      "
+    restart: unless-stopped
+
 volumes:
   mlflow-data:

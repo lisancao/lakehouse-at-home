@@ -1,0 +1,37 @@
+# Spark configuration with Delta Lake + Iceberg support
+# Copy to spark-defaults.conf and update credentials
+
+# Iceberg configuration (primary catalog)
+spark.sql.extensions                org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,io.delta.sql.DeltaSparkSessionExtension
+spark.sql.catalog.iceberg           org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.iceberg.type      jdbc
+spark.sql.catalog.iceberg.uri       jdbc:postgresql://localhost:5432/iceberg_catalog
+spark.sql.catalog.iceberg.warehouse s3a://lakehouse/warehouse
+spark.sql.catalog.iceberg.jdbc.user your_username
+spark.sql.catalog.iceberg.jdbc.password your_password
+spark.sql.catalog.iceberg.jdbc.schema-version  V1
+
+# Delta Lake configuration
+spark.sql.catalog.spark_catalog     org.apache.spark.sql.delta.catalog.DeltaCatalog
+
+# S3 configuration for SeaweedFS
+spark.hadoop.fs.s3a.endpoint        http://localhost:8333
+spark.hadoop.fs.s3a.access.key      your_access_key
+spark.hadoop.fs.s3a.secret.key      your_secret_key
+spark.hadoop.fs.s3a.path.style.access true
+spark.hadoop.fs.s3a.impl            org.apache.hadoop.fs.s3a.S3AFileSystem
+spark.hadoop.fs.s3a.connection.ssl.enabled false
+
+# JARs: Iceberg + Delta Lake + S3
+spark.jars  /opt/spark/jars-extra/iceberg-spark-runtime-4.0_2.13-1.10.0.jar,/opt/spark/jars-extra/delta-spark_2.13-4.0.1.jar,/opt/spark/jars-extra/delta-storage-4.0.1.jar,/opt/spark/jars-extra/hadoop-aws-3.4.1.jar,/opt/spark/jars-extra/aws-java-sdk-bundle-1.12.780.jar,/opt/spark/jars-extra/bundle-2.24.6.jar,/opt/spark/jars-extra/postgresql-42.7.4.jar
+
+# Performance tuning
+spark.driver.memory                 4g
+spark.executor.memory               8g
+spark.executor.cores                2
+spark.sql.warehouse.dir             /opt/spark-data/warehouse
+
+# Event log for history server
+spark.eventLog.enabled              true
+spark.eventLog.dir                  /opt/spark-data/logs
+spark.history.fs.logDirectory       /opt/spark-data/logs
