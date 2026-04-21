@@ -1,18 +1,25 @@
-# Jupyter Lab for running workshop notebooks
+# JupyterLab for running workshop notebooks against Spark 4.1.
+#
+# Builds a local image (docker/jupyter/Dockerfile) that layers JupyterLab
+# on top of apache/spark:4.1.0 so the Spark runtime inside the notebook
+# matches the rest of the stack (SDP, VARIANT, Real-Time Mode, etc.).
 #
 # Usage:
-#   docker compose -f docker-compose-notebooks.yml up -d
+#   docker compose -f docker-compose-notebooks.yml up -d --build
 #   # Open http://localhost:8889 (no token required)
 #   docker compose -f docker-compose-notebooks.yml down
 #
-# Notes:
-# - Notebooks run Spark in local mode for learning/demonstration
-# - For cluster execution, use the standalone scripts via spark-submit:
-#   docker exec spark-master-41 spark-submit /scripts/pipelines/pipeline_spark41.py
+# Notebooks run Spark in local mode. For cluster execution, submit to
+# spark-master-41:
+#   docker exec spark-master-41 /opt/spark/bin/spark-submit \
+#     /scripts/pipelines/pipeline_spark41.py
 
 services:
   jupyter:
-    image: jupyter/pyspark-notebook:spark-3.5.0
+    build:
+      context: .
+      dockerfile: docker/jupyter/Dockerfile
+    image: lakehouse-jupyter:spark-4.1.0
     container_name: jupyter
     network_mode: "host"
     user: root
@@ -21,15 +28,4 @@ services:
       - ./scripts:/home/jovyan/scripts
       - ./data:/home/jovyan/data
       - ./jars:/home/jovyan/jars
-    environment:
-      - JUPYTER_ENABLE_LAB=yes
-      - JUPYTER_PORT=8889
-      - GRANT_SUDO=yes
-      - NB_USER=jovyan
-      # Use Spark's bundled version (3.5.0) in local mode for notebooks
-      - SPARK_HOME=/usr/local/spark
-      - PYTHONPATH=/usr/local/spark/python:/usr/local/spark/python/lib/py4j-0.10.9.7-src.zip
     working_dir: /home/jovyan/notebooks
-    command: >
-      bash -c "pip install pyarrow --quiet &&
-               start-notebook.py --NotebookApp.token='' --NotebookApp.password='' --allow-root"
