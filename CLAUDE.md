@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Self-hostable data lakehouse: Spark 4.x + Iceberg 1.10 + Kafka 3.6 + PostgreSQL + SeaweedFS.
+Composable OSS lakehouse reference architecture. Spark 4.x + (Iceberg 1.10 **and** Delta 4.0) + Kafka 3.6 + PostgreSQL + SeaweedFS + Unity Catalog OSS 0.4.0 + MLflow 3.1 + Airflow 3.1. Runs locally on Docker, deploys to AWS via Terraform. See `README.md` for positioning and roadmap (Apache Ozone, Kubernetes).
 
 ## Documentation
 
@@ -92,38 +92,51 @@ poetry run pytest -m spark41 -v                           # Spark 4.1 only
 | `docker-compose.yml` | Spark 4.0 cluster |
 | `docker-compose-kafka.yml` | Kafka + Zookeeper |
 | `docker-compose-unity-catalog.yml` | Unity Catalog OSS server |
+| `docker-compose-mlflow.yml` | MLflow tracking + AI Gateway |
 | `docker-compose-airflow.yml` | Apache Airflow orchestration |
-| `dags/` | Airflow DAG definitions |
-| `jars/` | Required JARs (~860MB) |
-| `scripts/quickstarts/` | Tutorials (01-04) and demos |
+| `docker-compose-notebooks.yml` | JupyterLab (Spark 4.1 via `docker/jupyter/Dockerfile`) |
+| `config/mlflow/gateway-config.yml` | MLflow AI Gateway routes (Anthropic + Ollama) |
+| `config/spark/spark-defaults-{uc,delta}.conf.example` | Spark config for UC / Delta |
+| `dags/` | Airflow DAG definitions (incl. `sdp_pipeline.py`) |
+| `jars/` | Required JARs (~860MB, gitignored) |
+| `scripts/quickstarts/` | Tutorials (01-04) |
 | `scripts/connectivity/` | Integration test scripts (run via CLI) |
 | `scripts/pipelines/` | Spark pipeline scripts (SDP, Spark 4.0/4.1) |
-| `scripts/demos/` | Interactive demo scripts |
-| `scripts/tools/` | Utility scripts (download-jars, etc) |
+| `scripts/demos/showcase/` | One-script-per-stack-component demos |
+| `scripts/demos/mlflow-agents/` | MLflow AI Gateway reference agents |
+| `scripts/demos/transformations/` | SDP walkthrough pipelines |
+| `scripts/tools/` | Utility scripts (download-jars, worktree, etc.) |
 | `scripts/testdata/` | Test data generator |
-| `tests/` | Test suite |
+| `benchmarks/` | Runnable perf harness (file/table formats, workloads) |
+| `tests/` | Test suite (`integration/sdp/` is SDP-specific) |
 | `schemas/` | Database migrations |
-| `terraform/` | AWS infrastructure |
+| `terraform/` | AWS self-hosted deployment |
+| `terraform-databricks/` | Databricks managed destination |
+| `AGENTS.md` | Spark 4.1 reference for AI assistants |
 | `.pre-commit-config.yaml` | Security hooks |
 
 ## Architecture
 
 ```
-Spark 4.x → Iceberg 1.10 → PostgreSQL (metadata) + SeaweedFS (data)
-                ↑               ↑
-            Kafka 3.6      Unity Catalog (optional REST catalog)
-                ↑
-            Airflow (optional orchestration)
+Spark 4.x  →  Iceberg 1.10 / Delta 4.0 (dual-OTF)  →  Catalog  →  SeaweedFS (S3 API)
+     ↑                                                   ↑
+   Kafka 3.6                            PostgreSQL JDBC  |  Unity Catalog OSS (0.4.0)
+     ↑
+   Airflow 3.1                          MLflow 3.1 + AI Gateway (Anthropic + Ollama)
 ```
 
 **Catalog Options:**
 - **PostgreSQL JDBC** (default) - Direct SQL, Spark-only
-- **Unity Catalog OSS** (optional) - REST API, multi-client (DuckDB, Trino, etc.)
+- **Unity Catalog OSS** (optional) - REST API, multi-client (DuckDB, Trino, etc.), 0.4.0 catalog-managed commits
+
+**OTF Options (mix freely):**
+- **Iceberg** for the default bronze/silver/gold path
+- **Delta** runs on the same cluster via `config/spark/spark-defaults-delta.conf.example`
 
 **Namespaces (Medallion):**
-- `iceberg.bronze.*` - Raw data
-- `iceberg.silver.*` - Cleaned
-- `iceberg.gold.*` - Aggregated
+- `iceberg.bronze.*` / `delta.bronze.*` - Raw
+- `iceberg.silver.*` / `delta.silver.*` - Cleaned
+- `iceberg.gold.*` / `delta.gold.*` - Aggregated
 
 ## Ports
 
@@ -137,6 +150,9 @@ Spark 4.x → Iceberg 1.10 → PostgreSQL (metadata) + SeaweedFS (data)
 | Zookeeper | 2181 |
 | Unity Catalog | 8081 (when running with Spark) |
 | Airflow | 8085 |
+| MLflow Tracking | 5000 |
+| MLflow AI Gateway | 5001 |
+| JupyterLab (optional) | 8889 |
 
 ## Code Style
 
@@ -239,13 +255,13 @@ See `docs/DEV_WORKFLOW.md` for full workflow details.
 
 ## AI Skills Reference
 
-The `.claude/skills/` directory contains detailed reference guides for AI assistants:
+Two top-level references for AI assistants:
 
-| Skill File | Topic |
-|------------|-------|
-| `SDP.md` | Spark Declarative Pipelines - complete reference from basics to production |
+| File | Topic |
+|------|-------|
+| `AGENTS.md` | Compressed Spark 4.1 reference (always in context, no skill invocation) |
+| `.claude/skills/SDP.md` | Spark Declarative Pipelines — full reference, patterns, common errors |
 
-**When to use skills files:**
-- When writing Spark pipelines, read `.claude/skills/SDP.md` first
-- Skills files contain patterns, common errors, and lakehouse-specific examples
-- They are tested with AI assistants to ensure clarity and completeness
+**When to use:**
+- `AGENTS.md` is compact enough to load up-front — read it before writing any PySpark
+- `.claude/skills/SDP.md` is deeper — read before designing or debugging an SDP pipeline
