@@ -1,3 +1,15 @@
+# Demos
+
+## What's here
+
+| Suite | Purpose |
+|-------|---------|
+| [`showcase/`](showcase/README.md) | One-script-per-stack-component building blocks (Iceberg, UC, SDP, RTM, Airflow, Connect, K8s) |
+| [`mlflow-agents/`](mlflow-agents/README.md) | Reference MLflow AI Gateway agents that manage the lakehouse |
+| [`transformations/`](transformations/) + the rest of this file | 5-minute Spark Declarative Pipelines walkthrough with voiceover script |
+
+---
+
 # Spark Declarative Pipelines Demo
 
 A 5-minute demo showcasing Spark 4.1's Declarative Pipelines feature.
