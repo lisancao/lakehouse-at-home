@@ -1,23 +1,34 @@
-# Unity Catalog OSS - Standalone deployment
+# Unity Catalog OSS v0.4.0 - Standalone deployment
 #
 # This provides an alternative to the PostgreSQL JDBC catalog with:
-# - REST API for Iceberg tables
-# - Multi-format support (Delta, Iceberg, Hudi via UniForm)
-# - Credential vending for S3/SeaweedFS
-# - Interoperability with DuckDB, Trino, Dremio, etc.
+# - REST API for Iceberg tables (read-only via Iceberg REST, full CRUD via UC API)
+# - Catalog-managed commits (NEW in 0.4.0 — UC coordinates multi-engine writes)
+# - Credential vending via external locations (overhauled in 0.4.0)
+# - Storage credentials API (AWS IAM role support)
+# - Multi-format support (Delta, Iceberg via UniForm)
+# - Interoperability with DuckDB, Trino, Dremio, Polars, etc.
+# - Authorization framework (OAuth + grants)
+# - Managed storage locations for catalogs/schemas
 #
 # Usage:
 #   docker compose -f docker-compose-unity-catalog.yml up -d
 #
 # Then configure Spark to use Unity Catalog REST endpoint:
 #   spark.sql.catalog.iceberg.uri = http://localhost:8080/api/2.1/unity-catalog/iceberg
+#
+# New in 0.4.0:
+#   - Catalog-managed commits: set server.managed-table.enabled=true in server.properties
+#   - External locations API: POST /api/2.1/unity-catalog/external-locations
+#   - Storage credentials API: POST /api/2.1/unity-catalog/credentials
+#   - Managed storage on catalogs/schemas (storage_root parameter)
+#   - UniForm improvements (Delta-to-Iceberg atomic metadata updates)
 
 services:
   unity-catalog:
-    image: unitycatalog/unitycatalog:0.3.1
+    image: unitycatalog/unitycatalog:0.5.0-local
     container_name: unity-catalog
     ports:
-      - "8080:8080"      # REST API + Iceberg REST Catalog endpoint
+      - "8081:8080"      # REST API + Iceberg REST Catalog endpoint (8081 host, SeaweedFS uses 8080)
     environment:
       - JAVA_OPTS=-Xmx2g
     volumes:
@@ -37,7 +48,7 @@ services:
   # Optional: Unity Catalog Web UI
   # Uncomment to enable the graphical interface
   # unity-catalog-ui:
-  #   image: unitycatalog/unitycatalog-ui:0.3.1
+  #   image: unitycatalog/unitycatalog-ui:0.4.0
   #   container_name: unity-catalog-ui
   #   ports:
   #     - "3000:3000"
