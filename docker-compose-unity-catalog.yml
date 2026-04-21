@@ -25,16 +25,19 @@
 
 services:
   unity-catalog:
-    image: unitycatalog/unitycatalog:0.5.0-local
+    image: unitycatalog/unitycatalog:v0.4.0
     container_name: unity-catalog
     ports:
       - "8081:8080"      # REST API + Iceberg REST Catalog endpoint (8081 host, SeaweedFS uses 8080)
     environment:
       - JAVA_OPTS=-Xmx2g
     volumes:
-      - ./config/unity-catalog:/opt/unitycatalog/etc/conf
-      - uc-data:/opt/unitycatalog/etc/db
-      - uc-logs:/opt/unitycatalog/etc/logs
+      #- ./config/unity-catalog:/opt/unitycatalog/etc/conf
+      - type: bind
+        source: ./config/unity-catalog/server.properties
+        target: /home/unitycatalog/etc/conf/server.properties
+      #- uc-data:/home/unitycatalog/etc/db
+      - uc-logs:/home/unitycatalog/etc/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/2.1/unity-catalog/catalogs"]
       interval: 30s
