@@ -35,6 +35,8 @@ JAR_LIST=(
     "aws-java-sdk-bundle-1.12.780.jar|https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/1.12.780/aws-java-sdk-bundle-1.12.780.jar|350000000"
     "bundle-2.24.6.jar|https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/2.24.6/bundle-2.24.6.jar|400000000"
     "postgresql-42.7.4.jar|https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.4/postgresql-42.7.4.jar|1000000"
+    "delta-spark_2.13-4.0.1.jar|https://repo1.maven.org/maven2/io/delta/delta-spark_2.13/4.0.1/delta-spark_2.13-4.0.1.jar|7000000"
+    "delta-storage-4.0.1.jar|https://repo1.maven.org/maven2/io/delta/delta-storage/4.0.1/delta-storage-4.0.1.jar|70000"
 )
 
 # Get file size (cross-platform)

@@ -1,6 +1,7 @@
 name: lakehouse_pipeline
 libraries:
-  - file: pipeline_sdp.py
+  - glob:
+      include: pipeline_sdp.py
 catalog: iceberg
 database: bronze
 storage: /tmp/lakehouse-checkpoint

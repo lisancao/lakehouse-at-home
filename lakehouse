@@ -479,29 +479,29 @@ cmd_status_human() {
     check_service seaweedfs 8333 "SeaweedFS"
 
     echo -e "\n${YELLOW}Unity Catalog (optional):${NC}"
-    check_container "unity-catalog" && check_service uc 8080 "Unity Catalog REST API" || true
+    check_container "unity-catalog" && check_service uc 8081 "Unity Catalog REST API" || true
 
     echo -e "\n${YELLOW}Spark 4.0 Containers:${NC}"
     check_container "spark-master" && docker exec spark-master /opt/spark/bin/spark-submit --version 2>&1 | grep "version" | head -1 || true
-    check_container "spark-worker"
+    check_container "spark-worker" || true
 
     echo -e "\n${YELLOW}Spark 4.1 Containers:${NC}"
     check_container "spark-master-41" && docker exec spark-master-41 /opt/spark/bin/spark-submit --version 2>&1 | grep "version" | head -1 || true
-    check_container "spark-worker-41"
+    check_container "spark-worker-41" || true
 
     echo -e "\n${YELLOW}Kafka Containers:${NC}"
-    check_container "kafka"
-    check_container "zookeeper"
+    check_container "kafka" || true
+    check_container "zookeeper" || true
 
     echo -e "\n${YELLOW}Airflow Containers:${NC}"
     check_container "airflow-webserver" && check_service airflow 8085 "Airflow UI" || true
-    check_container "airflow-scheduler"
-    check_container "airflow-triggerer"
+    check_container "airflow-scheduler" || true
+    check_container "airflow-triggerer" || true
 
     echo -e "\n${YELLOW}Ports:${NC}"
     echo "  PostgreSQL:       5432"
     echo "  SeaweedFS:        8333"
-    echo "  Unity Catalog:    8080 (REST API + Iceberg endpoint)"
+    echo "  Unity Catalog:    8081 (REST API + Iceberg endpoint)"
     echo "  Spark 4.0:        7077, 8080 (UI), 8081 (Worker UI)"
     echo "  Spark 4.1:        7078, 8082 (UI), 8083 (Worker UI)"
     echo "  Kafka:            9092"
@@ -604,18 +604,11 @@ check_ports_for_service() {
 
     case $service in
         unity-catalog|uc)
-            if ! check_port_available 8080 "unity-catalog"; then
-                # Special case: 8080 might be Spark 4.0 UI
-                if docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^spark-master$"; then
-                    echo -e "  ${YELLOW}!${NC} Port 8080 in use by Spark 4.0 UI - Unity Catalog will conflict"
-                    echo -e "      ${YELLOW}→ Stop Spark 4.0 or use Spark 4.1 (port 8082) instead${NC}"
-                    has_conflicts=1
-                else
-                    echo -e "  ${RED}✗${NC} Port 8080 (Unity Catalog) blocked by another process"
-                    has_conflicts=1
-                fi
+            if ! check_port_available 8081 "unity-catalog"; then
+                echo -e "  ${RED}✗${NC} Port 8081 (Unity Catalog) blocked by another process"
+                has_conflicts=1
             else
-                echo -e "  ${GREEN}✓${NC} Port 8080 (Unity Catalog) available"
+                echo -e "  ${GREEN}✓${NC} Port 8081 (Unity Catalog) available"
             fi
             ;;
     esac
@@ -668,7 +661,7 @@ cmd_start() {
                 echo -e "${YELLOW}!${NC} Edit config/unity-catalog/server.properties with your S3 credentials"
             fi
             docker compose -f docker-compose-unity-catalog.yml up -d
-            wait_for_service "Unity Catalog" "curl -s http://localhost:8080/api/2.1/unity-catalog/catalogs" 60
+            wait_for_service "Unity Catalog" "curl -s http://localhost:8081/api/2.1/unity-catalog/catalogs" 60
             ;;
     esac
 
@@ -846,10 +839,10 @@ cmd_test() {
 
     echo -e "\n${YELLOW}5. Testing Unity Catalog (optional)...${NC}"
     if docker ps --format '{{.Names}}' | grep -q '^unity-catalog$'; then
-        if curl -s --connect-timeout 5 http://localhost:8080/api/2.1/unity-catalog/catalogs > /dev/null 2>&1; then
+        if curl -s --connect-timeout 5 http://localhost:8081/api/2.1/unity-catalog/catalogs > /dev/null 2>&1; then
             echo -e "   ${GREEN}✓${NC} Unity Catalog REST API healthy"
             # Test Iceberg REST endpoint
-            if curl -s --connect-timeout 5 http://localhost:8080/api/2.1/unity-catalog/iceberg/v1/config > /dev/null 2>&1; then
+            if curl -s --connect-timeout 5 http://localhost:8081/api/2.1/unity-catalog/iceberg/v1/config > /dev/null 2>&1; then
                 echo -e "   ${GREEN}✓${NC} Iceberg REST Catalog endpoint available"
             else
                 echo -e "   ${YELLOW}!${NC} Iceberg REST endpoint not responding (may need configuration)"
@@ -1249,7 +1242,7 @@ cmd_setup() {
     # Step 8: Check for port conflicts
     echo -e "\n${YELLOW}7. Checking for port conflicts...${NC}"
     local ports_ok=1
-    for port in 5432 8333 9092 7077 7078 8080 8082; do
+    for port in 5432 8333 9092 7077 7078 8081 8082; do
         if nc -z localhost $port 2>/dev/null; then
             case $port in
                 5432) echo -e "  ${GREEN}✓${NC} Port $port in use (PostgreSQL expected)" ;;
@@ -1320,7 +1313,7 @@ cmd_help() {
     echo ""
     echo "Unity Catalog:"
     echo "  Unity Catalog OSS provides an alternative to PostgreSQL JDBC catalog:"
-    echo "  - REST API for Iceberg tables (port 8080)"
+    echo "  - REST API for Iceberg tables (port 8081)"
     echo "  - Multi-format support (Delta, Iceberg, Hudi via UniForm)"
     echo "  - Interoperability with DuckDB, Trino, Dremio"
     echo "  See: docs/guides/unity-catalog.md"
