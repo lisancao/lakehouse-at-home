@@ -1,6 +1,7 @@
 # Credentials and Secrets
 config/spark/spark-defaults.conf
 config/spark/spark-defaults-uc.conf
+config/spark/spark-defaults-delta.conf
 config/unity-catalog/server.properties
 .env
 .env.*
@@ -23,8 +24,9 @@ aws-credentials*
 
 # JAR files (use scripts/download-jars.sh to get files)
 jars/*.jar
+jars/*.jar.[0-9]*
 
-# data directories
+# Data directories
 /data/
 
 # IDE
@@ -40,6 +42,10 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .venv/
+.coverage
+.coverage.*
+.pytest_cache/
+.ruff_cache/
 
 # Loose JAR files at root (should be in jars/)
 /*.jar
@@ -48,6 +54,16 @@ __pycache__/
 spark-warehouse/
 metastore_db/
 derby.log
+ivy-cache/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Benchmark outputs (keep harness tracked, outputs local)
+benchmarks/results/*.json
+benchmarks/results/pipelines/*.json
+!benchmarks/results/.gitkeep
 
 # OS
 .DS_Store
@@ -56,8 +72,6 @@ Thumbs.db
 # Logs
 *.log
 logs/
-*.swo
-*.swp
 
 # Airflow
 logs/airflow/
@@ -69,3 +83,11 @@ terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/.terraform.lock.hcl
 terraform/terraform.tfvars
+terraform-databricks/.terraform/
+terraform-databricks/*.tfstate
+terraform-databricks/*.tfstate.backup
+terraform-databricks/.terraform.lock.hcl
+terraform-databricks/terraform.tfvars
+
+# Claude Code local agent configs (per-machine)
+.claude/agents/
