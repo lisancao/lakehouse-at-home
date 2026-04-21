@@ -99,7 +99,7 @@ def main():
         df_extracted = df_extracted.drop("body_variant")
 
     # Create namespace and table
-    spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg.overarch")
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg.gold")
     spark.sql("DROP TABLE IF EXISTS iceberg.gold.orders_variant")
 
     df_extracted.write.mode("overwrite").saveAsTable("iceberg.gold.orders_variant")

@@ -236,7 +236,7 @@ def run_demo():
     tracking_available = False
     try:
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-        mlflow.set_experiment("overarchitected-analyst")
+        mlflow.set_experiment("lakehouse-analyst")
         tracking_available = True
     except Exception:
         print("  MLflow tracking server not available — running without tracking.")

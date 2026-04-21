@@ -72,7 +72,7 @@ def act3_config_walkthrough(spark):
                                                   /opt/spark/jars-extra/postgresql-*.jar
 
   A user asks: "That's... a lot of config."
-  Nick: "Welcome to open source."
+  User: "Welcome to open source."
 
   Key versions (don't change without testing):
     - Iceberg: 1.10.0

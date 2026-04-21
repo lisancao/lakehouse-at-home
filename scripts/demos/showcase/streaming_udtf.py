@@ -159,7 +159,7 @@ def main():
     exploded.show(15, truncate=False)
 
     # Write to Iceberg
-    spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg.overarch")
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg.gold")
     exploded.write.mode("overwrite").saveAsTable("iceberg.gold.order_events_exploded")
     print("\n[Iceberg] Created iceberg.gold.order_events_exploded")
 

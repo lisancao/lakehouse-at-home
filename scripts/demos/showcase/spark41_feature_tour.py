@@ -45,7 +45,7 @@ def main():
         return
 
     # Create namespaces
-    spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg.overarch")
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg.gold")
 
     # Step 1: VARIANT body (or from_json fallback)
     orders_ts = orders.withColumn(

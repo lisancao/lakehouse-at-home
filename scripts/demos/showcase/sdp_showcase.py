@@ -160,7 +160,7 @@ class DeclarativePipeline:
         return results
 
 
-pipeline = DeclarativePipeline("overarchitected_sdp", catalog="iceberg")
+pipeline = DeclarativePipeline("lakehouse_sdp", catalog="iceberg")
 
 
 def act2_declarative(spark):
