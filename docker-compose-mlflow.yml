@@ -1,24 +1,34 @@
-version: '3.8'
-
 # MLflow Tracking Server + AI Gateway
 # ====================================
-# Part of the OverArchitected demo stack.
-#
 # Start: docker compose -f docker-compose-mlflow.yml up -d
 # UI:    http://localhost:5000
 #
 # AI Gateway is embedded in the tracking server (MLflow 3.9+).
-# Configure routes in config/mlflow/gateway-config.yml
+# Configure routes in config/mlflow/gateway-config.yml.
+#
+# The mlflow-agent sidecar is an idle Spark 4.1 container pre-loaded with
+# mlflow + openai — used as the execution environment for the reference
+# agent demos under scripts/demos/mlflow-agents/.
 
 services:
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v3.1.0
+    build:
+      context: .
+      dockerfile: docker/mlflow/Dockerfile
+    image: lakehouse-mlflow:3.1.0
     container_name: mlflow-server
     ports:
       - "5000:5000"
     environment:
-      # Tracking backend: PostgreSQL (shared with lakehouse)
-      MLFLOW_BACKEND_STORE_URI: "postgresql://mlflow:mlflow_password@localhost:5432/mlflow"
+      # Postgres connection — entrypoint provisions role + db as superuser
+      # then hands MLflow its own credentials. Superuser creds come from .env.
+      POSTGRES_HOST: "${POSTGRES_HOST:-localhost}"
+      POSTGRES_PORT: "${POSTGRES_PORT:-5432}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-}"
+      MLFLOW_PG_USER: "${MLFLOW_PG_USER:-mlflow}"
+      MLFLOW_PG_PASS: "${MLFLOW_PG_PASS:-mlflow_password}"
+      MLFLOW_PG_DB: "${MLFLOW_PG_DB:-mlflow}"
       # Artifact storage: SeaweedFS via S3
       MLFLOW_ARTIFACTS_DESTINATION: "s3://lakehouse/mlflow-artifacts"
       AWS_ACCESS_KEY_ID: "${S3_ACCESS_KEY:-admin}"
@@ -30,12 +40,6 @@ services:
       - ./config/mlflow:/config:ro
       - mlflow-data:/mlflow
     network_mode: host
-    command: >
-      mlflow server
-      --host 0.0.0.0
-      --port 5000
-      --backend-store-uri postgresql://mlflow:mlflow_password@localhost:5432/mlflow
-      --default-artifact-root s3://lakehouse/mlflow-artifacts
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
