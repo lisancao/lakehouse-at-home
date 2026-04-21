@@ -12,6 +12,8 @@ dependencies = [
     "kafka-python (>=2.3.0,<3.0.0)",
     "pyarrow (>=15.0.0,<19.0.0)",
     "numpy (>=1.26.0,<3.0.0)",
+    "pandas (>=2.2.0,<3.0.0)",
+    "scipy (>=1.11.0,<2.0.0)",
 ]
 
 [project.optional-dependencies]
@@ -97,6 +99,11 @@ markers = [
     "spark41: mark test for Spark 4.1 only",
     "security: mark test as security-focused",
     "full_stack: marks tests requiring all services running",
+    "sdp: mark test as SDP data source test",
+    "file_formats: mark test for file format sources",
+    "table_formats: mark test for table format sources",
+    "streaming: mark test for streaming sources",
+    "benchmark: mark test as benchmark (may be slow)",
 ]
 addopts = [
     "-v",
