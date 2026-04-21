@@ -97,6 +97,11 @@ markers = [
     "spark41: mark test for Spark 4.1 only",
     "security: mark test as security-focused",
     "full_stack: marks tests requiring all services running",
+    "sdp: mark test as SDP data source test",
+    "file_formats: mark test for file format sources",
+    "table_formats: mark test for table format sources",
+    "streaming: mark test for streaming sources",
+    "benchmark: mark test as benchmark (may be slow)",
 ]
 addopts = [
     "-v",
