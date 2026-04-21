@@ -23,13 +23,12 @@ NC='\033[0m' # No Color
 # See also https://github.com/cloud-helpers/k8s-job-wrappers/tree/main/setGnuTools.sh
 export DF_TOOL="df"
 check_gnutools_on_macos() {
-	DF_TOOL="gdf"
-	if [ ! $(command -v $DF_TOOL) ]
-	then
+    DF_TOOL="gdf"
+    if [ ! "$(command -v "$DF_TOOL")" ]; then
         echo -e "${RED}Missing GNU tools on MacOS:${NC}"
         echo -e "  ${RED}✗${NC} $DF_TOOL"
-		return 1
-	fi
+        return 1
+    fi
 }
 
 # Check if a command exists
@@ -1140,17 +1139,17 @@ cmd_setup() {
     local has_errors=0
 
     # Step 1.1: Check for GNU tools, when on MacOS
-	if [ -f /usr/bin/sw_vers ]
-	then	
-		echo -e "\n${YELLOW}1.1. Checking for GNU tools when on MacOS...${NC}"
-		if ! check_gnutools_on_macos; then
-			echo -e "\n${RED}Please install GNU tools on MacOS before continuing.${NC}"
-			echo "See SETUP.md for installation instructions."
-			has_errors=1
-		else
-			echo -e "${GREEN}✓ All required tools installed when on MacOS${NC}"
-		fi
-	fi
+    if [ -f /usr/bin/sw_vers ]; then
+        echo -e "\n${YELLOW}1.1. Checking for GNU tools when on MacOS...${NC}"
+        if ! check_gnutools_on_macos; then
+            echo -e "\n${RED}Please install GNU coreutils on MacOS before continuing.${NC}"
+            echo "  brew install coreutils"
+            echo "See docs/getting-started/installation.md for details."
+            has_errors=1
+        else
+            echo -e "${GREEN}✓ All required tools installed when on MacOS${NC}"
+        fi
+    fi
 
     # Step 1.2: Check prerequisites
     echo -e "\n${YELLOW}1.2. Checking prerequisites...${NC}"
