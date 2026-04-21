@@ -1,0 +1,68 @@
+# MLflow AI Gateway Configuration
+# =================================
+# Routes LLM traffic through a unified gateway.
+# Full OSS: GPT-OSS 20B (OpenAI) via Ollama as primary.
+# Fallback: Nemotron-Cascade 2 (NVIDIA) via Ollama.
+# Both US-origin models, both running locally, zero API cost.
+#
+# This config is loaded by MLflow server when MLFLOW_GATEWAY_CONFIG is set.
+# Hot-reloadable — changes take effect without restart.
+
+endpoints:
+  # ─── Primary: GPT-OSS 20B via Ollama (OpenAI open-weight) ──
+  # MoE architecture: 21B total, 3.6B active. ~160 tokens/sec local.
+  - name: chat
+    endpoint_type: llm/v1/chat
+    model:
+      provider: openai
+      name: gpt-oss:20b
+      config:
+        openai_api_base: http://localhost:11434/v1
+        openai_api_key: "ollama"
+
+  # ─── Fallback: Nemotron-Cascade 2 via Ollama (NVIDIA) ──────
+  # MoE: 30B total, 3B active. Gold-medal reasoning. ~30 tokens/sec.
+  - name: chat-fallback
+    endpoint_type: llm/v1/chat
+    model:
+      provider: openai
+      name: nemotron-cascade-2
+      config:
+        openai_api_base: http://localhost:11434/v1
+        openai_api_key: "ollama"
+
+  # ─── Code-focused: Qwen3-Coder 30B via Ollama ──────────────
+  # For the Pipeline Autopilot agent — code generation needs a code model.
+  - name: chat-code
+    endpoint_type: llm/v1/chat
+    model:
+      provider: openai
+      name: qwen3-coder:30b
+      config:
+        openai_api_base: http://localhost:11434/v1
+        openai_api_key: "ollama"
+
+  # ─── Completions (non-chat) ────────────────────────────────
+  - name: completions
+    endpoint_type: llm/v1/completions
+    model:
+      provider: openai
+      name: gpt-oss:20b
+      config:
+        openai_api_base: http://localhost:11434/v1
+        openai_api_key: "ollama"
+
+  # ─── Anthropic (optional — uncomment to add API fallback) ──
+  # - name: chat-anthropic
+  #   endpoint_type: llm/v1/chat
+  #   model:
+  #     provider: anthropic
+  #     name: claude-sonnet-4-5-20250514
+  #     config:
+  #       anthropic_api_key: ${ANTHROPIC_API_KEY}
+
+# Rate limiting (per endpoint)
+# rate_limits:
+#   - endpoint: chat
+#     calls: 100
+#     renewal_period: minute
