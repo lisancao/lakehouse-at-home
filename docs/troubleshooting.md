@@ -160,6 +160,39 @@ docker volume prune -f
 
 ## Spark Issues
 
+### `./data/` Permission Denied (Spark can't write, or testdata can't)
+
+**Symptom:** Spark driver/executor errors trying to write to `/data/spark`
+or `./data`, or `./lakehouse testdata generate` fails with `Permission
+denied` after a container has already written there.
+
+**Why it happens:** The official `apache/spark` images run as UID `185`
+(the `spark` user), but host-side commands like `testdata generate` run
+as your host UID (typically `1000` on Linux). If either side takes
+exclusive ownership of `./data/`, the other side can no longer write.
+
+**Fix — share the group:**
+
+```bash
+# User 185 (spark) owns the files, but the host group keeps write access.
+sudo chown -R 185 data/
+sudo chmod -R g+w data/
+sudo chmod g+s data/   # new files inherit the directory's group (sgid)
+```
+
+The `g+s` sgid bit is the key — it ensures any file Spark creates
+inside `./data/` adopts the directory's group, so the host user retains
+write access via group membership.
+
+**Alternative — run testdata inside the container:**
+
+```bash
+docker exec spark-master-41 python -m scripts.testdata.generator --days 7
+```
+
+No permission dance needed: the process runs as UID 185 directly, same
+as Spark itself.
+
 ### JARs Not Found
 
 **Symptom**: `ClassNotFoundException` or `NoClassDefFoundError`
