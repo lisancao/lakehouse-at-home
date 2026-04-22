@@ -15,10 +15,11 @@ services:
       - ./scripts:/scripts
       - ./ivy-cache:/root/.ivy2
       - ./data:/data
+    extra_hosts:
+      - host.docker.internal:host-gateway
     post_start:
-      - command: bash -c "mkdir -p /opt/spark-data/logs; chown -R spark.spark /opt/spark-data"
+      - command: bash -c "mkdir -p /opt/spark-data/logs; chown -R 185 /opt/spark-data; chmod -R g+w /opt/spark-data; chmod g+s /opt/spark-data"
         user: root
-        privileged: true
     command: >
       bash -c "
         /opt/spark/sbin/start-master.sh --host 0.0.0.0 --port 7078 --webui-port 8082 &&
@@ -39,10 +40,11 @@ services:
       - ./jars:/opt/spark/jars-extra
       - ./scripts:/scripts
       - ./data:/data
+    extra_hosts:
+      - host.docker.internal:host-gateway
     post_start:
-      - command: bash -c "mkdir -p /opt/spark-data/logs; chown -R spark.spark /opt/spark-data"
+      - command: bash -c "mkdir -p /opt/spark-data/logs; chown -R 185 /opt/spark-data; chmod -R g+w /opt/spark-data; chmod g+s /opt/spark-data"
         user: root
-        privileged: true
     command: >
       bash -c "
         sleep 5 &&
