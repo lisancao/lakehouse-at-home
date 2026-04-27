@@ -200,8 +200,8 @@ events_df = spark.read.parquet(events_path)
 events_df = events_df.withColumn(
     "event_timestamp",
     f.coalesce(
-        f.to_timestamp("ts", "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"),
-        f.to_timestamp("ts", "yyyy-MM-dd'T'HH:mm:ss")
+        f.try_to_timestamp(events_df.ts, f.lit("yyyy-MM-dd'T'HH:mm:ss.SSSSSS")),
+        f.try_to_timestamp(events_df.ts, f.lit("yyyy-MM-dd'T'HH:mm:ss"))
     )
 )
 

@@ -83,7 +83,7 @@ def generate_dataset(config: GeneratorConfig = None) -> dict:
     print(f"File size:  {event_results['file_size_mb']} MB")
     print()
     print("Next steps:")
-    print("  1. Load to Iceberg:  spark-submit data/load_to_iceberg.py")
+    print("  1. Load to Iceberg:  ./lakehouse testdata load")
     print("  2. Stream to Kafka:  ./lakehouse testdata stream --speed 60")
     print()
 
