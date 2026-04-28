@@ -18,7 +18,8 @@ ENV PATH="${JAVA_HOME}/bin:${PATH}"
 # Download and install Spark (for spark-submit)
 ENV SPARK_VERSION=4.1.0
 ENV SPARK_HOME=/opt/spark
-RUN curl -fsSL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" \
+RUN curl -fsSL --retry 3 --retry-delay 15 --connect-timeout 30 --max-time 1500 \
+    "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" \
     | tar -xz -C /opt/ \
     && mv /opt/spark-${SPARK_VERSION}-bin-hadoop3 ${SPARK_HOME} \
     && chown -R airflow:root ${SPARK_HOME}

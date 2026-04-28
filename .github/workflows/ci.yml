@@ -634,4 +634,4 @@ jobs:
           else
             echo "No DAGs found, skipping validation"
           fi
-        timeout-minutes: 10
+        timeout-minutes: 25
