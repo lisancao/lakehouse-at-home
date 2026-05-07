@@ -140,6 +140,88 @@ docker exec airflow-webserver airflow dags trigger iceberg_compact_on_demand \
   --conf '{"table": "iceberg.silver.orders_clean", "target_size_mb": 256}'
 ```
 
+## Spark Declarative Pipelines (SDP) via `SparkPipelinesOperator`
+
+For SDP pipelines defined by a `spark-pipeline.yml` spec, use the dedicated `SparkPipelinesOperator` instead of `SparkSubmitOperator` + a manual `spark-pipelines` CLI invocation. The operator was added to `apache-airflow-providers-apache-spark` upstream (Apache Airflow PR #61681, March 2026).
+
+This repo ships a vendored copy at [`dags/spark_pipelines_operator.py`](../../dags/spark_pipelines_operator.py). The vendoring removes coupling between the Dag code and a specific provider version, so the demo Dags run on any provider release that includes `SparkSubmitHook`. To switch back to upstream once the pinned provider in [`docker/airflow/Dockerfile`](../../docker/airflow/Dockerfile) carries the operator, change two import lines per Dag.
+
+### Basic usage
+
+```python
+from airflow.sdk import DAG
+from datetime import datetime
+
+try:
+    from airflow.providers.apache.spark.operators.spark_pipelines import SparkPipelinesOperator
+except ImportError:
+    from spark_pipelines_operator import SparkPipelinesOperator
+
+with DAG(
+    dag_id="my_sdp_pipeline",
+    schedule="@daily",
+    start_date=datetime(2026, 4, 1),
+    catchup=False,
+):
+    SparkPipelinesOperator(
+        task_id="run_pipeline",
+        pipeline_spec="/scripts/pipelines/spark-pipeline.yml",
+        pipeline_command="run",          # or "dry-run" for validation
+        conn_id="spark_default",
+        conf={"spark.sql.adaptive.enabled": "true"},
+    )
+```
+
+### Demo Dags
+
+The [`dags/sdp-airflow-demo/`](../../dags/sdp-airflow-demo/) directory contains eight reference patterns, each in its own file:
+
+| File | Pattern |
+|------|---------|
+| `spark_events_dag.py` | Single-pipeline baseline. Start here. |
+| `validate_then_run.py` | `dry-run` → `run` chain. Catches spec errors before launching the cluster job. |
+| `multi_pipeline.py` | Chain or parallelize multiple SDP pipelines. Each task runs a different spec. |
+| `parameterized.py` | Pass runtime parameters (date partitions, source paths) into the spec via `conf` / `env_vars`. |
+| `conditional_execution.py` | Branch on data availability or upstream task state before invoking SDP. |
+| `sensor_triggered.py` | Kafka / S3 sensor blocks until data lands, then runs the pipeline. |
+| `resource_tuning.py` | Per-pipeline `executor_memory`, `driver_memory`, `num_executors` overrides. |
+| `rich_operator_config.py` | Full operator configuration showcase (templates, env, deploy_mode). |
+
+### Why use `SparkPipelinesOperator` instead of `SparkSubmitOperator`
+
+`SparkSubmitOperator` builds a `spark-submit` command. SDP pipelines do not run via `spark-submit`. They run via the `spark-pipelines` CLI, which dispatches through Spark Connect when `SPARK_REMOTE` is set and through `spark-submit` otherwise. `SparkPipelinesOperator` invokes the right CLI for both modes and adds:
+
+- Pipeline-level templating (`pipeline_spec`, `pipeline_command`, `conf`, `env_vars` are all `template_fields`)
+- Type-safe validation of `pipeline_command` (`"run"` or `"dry-run"`)
+- Cleaner logs (the operator labels the invocation with the resolved `SPARK_REMOTE`)
+- Direct dispatch to the `pyspark.pipelines.cli` Python module to bypass the `spark-pipelines` shell wrapper, which (in Spark 4.1) routes through the JVM `SparkSubmit` path even when `SPARK_REMOTE` is set, causing it to bind a duplicate Spark Connect server on port 15002 and reject the `--master` / `--deploy-mode` flags
+
+If you have an existing Dag using `SparkSubmitOperator` to launch `spark-pipelines run`, the migration is mechanical:
+
+```python
+# Before
+SparkSubmitOperator(
+    task_id="run_pipeline",
+    application="/usr/local/bin/spark-pipelines",
+    application_args=["run", "--spec", "/scripts/pipelines/spark-pipeline.yml"],
+    conn_id="spark_default",
+)
+
+# After
+SparkPipelinesOperator(
+    task_id="run_pipeline",
+    pipeline_spec="/scripts/pipelines/spark-pipeline.yml",
+    pipeline_command="run",
+    conn_id="spark_default",
+)
+```
+
+### Reference
+
+- Apache Airflow operator howto: <https://airflow.apache.org/docs/apache-airflow-providers-apache-spark/stable/operators.html#sparkpipelinesoperator>
+- Spark Declarative Pipelines programming guide: <https://spark.apache.org/docs/latest/declarative-pipelines-programming-guide.html>
+- Vendored operator source: [`dags/spark_pipelines_operator.py`](../../dags/spark_pipelines_operator.py)
+
 ## CLI Commands
 
 ```bash
