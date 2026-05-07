@@ -1,0 +1,40 @@
+# Airflow 3.1.6 + Spark 4.1 — base image build (slow: pulls Spark 4.1
+# tarball from archive.apache.org at ~70 KB/s = 2+ hours). Build with:
+#   docker build -t lakehouse-stack/airflow-base:3.1.6 -f docker/airflow/Dockerfile.base docker/airflow
+FROM apache/airflow:3.1.6-python3.12
+
+USER root
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    openjdk-17-jre-headless \
+    curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+
+ENV SPARK_VERSION=4.1.0
+ENV SPARK_HOME=/opt/spark
+RUN curl -fsSL --retry 3 --retry-delay 15 --connect-timeout 30 --max-time 7200 \
+    "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" \
+    | tar -xz -C /opt/ \
+    && mv /opt/spark-${SPARK_VERSION}-bin-hadoop3 ${SPARK_HOME} \
+    && chown -R airflow:root ${SPARK_HOME}
+
+ENV PATH="${SPARK_HOME}/bin:${PATH}"
+
+USER airflow
+
+RUN pip install --no-cache-dir \
+    apache-airflow-providers-apache-spark==5.5.0 \
+    apache-airflow-providers-postgres==5.14.0 \
+    apache-airflow-providers-apache-kafka==1.8.0 \
+    apache-airflow-providers-docker==3.14.0 \
+    apache-airflow-providers-http==5.6.3 \
+    pyspark==4.1.0
+
+RUN mkdir -p /opt/airflow/dags /opt/airflow/logs /opt/airflow/config
+
+WORKDIR /opt/airflow

@@ -1,0 +1,33 @@
+server:
+  applicationConnectors:
+  - type: http
+    port: ${MARQUEZ_PORT:-5001}
+    httpCompliance: RFC7230_LEGACY
+  adminConnectors:
+  - type: http
+    port: ${MARQUEZ_ADMIN_PORT:-5002}
+
+# Lakehouse-stack uses the host's Postgres at localhost:5432; the marquez DB
+# is created by us in init steps. Credentials are the same Postgres user
+# used by airflow + iceberg_catalog (read from env).
+db:
+  driverClass: org.postgresql.Driver
+  url: jdbc:postgresql://${MARQUEZ_DB_HOST:-localhost}:${MARQUEZ_DB_PORT:-5432}/${MARQUEZ_DB:-marquez}
+  user: ${MARQUEZ_DB_USER:-postgres}
+  password: ${MARQUEZ_DB_PASSWORD:-}
+
+migrateOnStartup: true
+
+graphql:
+  enabled: true
+
+logging:
+  level: INFO
+  appenders:
+    - type: console
+
+tags:
+  - name: PII
+    description: Personally identifiable information
+  - name: SENSITIVE
+    description: Contains sensitive information

@@ -1,0 +1,55 @@
+# Marquez — OpenLineage events collector + lineage UI for the lakehouse stack.
+#
+# Both Airflow (apache-airflow-providers-openlineage) and Spark
+# (openlineage-spark listener) emit events here. Same lineage graph spans
+# DAG runs and the Spark jobs they spawn.
+#
+# Ports
+#   5001 — Marquez REST API (OpenLineage POST /api/v1/lineage)
+#   5002 — Marquez admin (Dropwizard health/metrics)
+#   3001 — Marquez Web UI
+#
+# Backend: reuses host Postgres (separate "marquez" database).
+
+services:
+  marquez-api:
+    image: marquezproject/marquez:0.49.0
+    container_name: marquez-api
+    network_mode: "host"
+    env_file: .env
+    environment:
+      MARQUEZ_PORT: 5001
+      MARQUEZ_ADMIN_PORT: 5002
+      # Marquez's entrypoint reads MARQUEZ_DB_* (not POSTGRES_*) and passes
+      # them to a Dropwizard config template. Hostname must be reachable
+      # from the marquez container — host network gives us localhost.
+      MARQUEZ_DB_HOST: localhost
+      MARQUEZ_DB_PORT: 5432
+      MARQUEZ_DB: marquez
+      MARQUEZ_DB_USER: ${POSTGRES_USER}
+      MARQUEZ_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      MARQUEZ_HOST: localhost
+      MARQUEZ_CONFIG: /usr/src/app/marquez.yml
+    volumes:
+      - ./config/marquez/marquez.yml:/usr/src/app/marquez.yml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+    restart: unless-stopped
+
+  marquez-web:
+    image: marquezproject/marquez-web:0.49.0
+    container_name: marquez-web
+    network_mode: "host"
+    env_file: .env
+    environment:
+      MARQUEZ_HOST: localhost
+      MARQUEZ_PORT: 5001
+      WEB_PORT: 3001
+    depends_on:
+      marquez-api:
+        condition: service_healthy
+    restart: unless-stopped

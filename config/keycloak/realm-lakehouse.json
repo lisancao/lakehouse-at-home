@@ -1,0 +1,127 @@
+{
+  "realm": "lakehouse",
+  "displayName": "Lakehouse",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 1800,
+  "ssoSessionIdleTimeout": 3600,
+  "ssoSessionMaxLifespan": 36000,
+
+  "roles": {
+    "realm": [
+      { "name": "lakehouse-admin", "description": "Full access to Airflow + Unity Catalog" },
+      { "name": "lakehouse-user",  "description": "Read-only access to Airflow + Unity Catalog" }
+    ]
+  },
+
+  "groups": [
+    { "name": "admins", "realmRoles": ["lakehouse-admin"] },
+    { "name": "users",  "realmRoles": ["lakehouse-user"] }
+  ],
+
+  "users": [
+    {
+      "username": "lakehouse-admin",
+      "email": "lakehouse-admin@example.local",
+      "firstName": "Lakehouse",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "lakehouse", "temporary": false }
+      ],
+      "realmRoles": ["lakehouse-admin", "default-roles-lakehouse"],
+      "groups": ["/admins"]
+    }
+  ],
+
+  "clients": [
+    {
+      "clientId": "airflow",
+      "name": "Apache Airflow",
+      "description": "Airflow webserver + API auth via KeycloakAuthManager",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "airflow-demo-client-secret-do-not-use-in-prod",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true,
+      "redirectUris": [
+        "http://localhost:8086/*",
+        "http://localhost:8086/auth/keycloak/callback",
+        "http://airflow-webserver:8086/*"
+      ],
+      "webOrigins": ["http://localhost:8086", "+"],
+      "rootUrl": "http://localhost:8086",
+      "baseUrl": "http://localhost:8086",
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:8086/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-airflow",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "airflow",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "unity-catalog",
+      "name": "Unity Catalog OSS",
+      "description": "Unity Catalog REST API auth via OIDC",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "unity-catalog-demo-client-secret-do-not-use-in-prod",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "redirectUris": [
+        "http://localhost:8081/*",
+        "http://unity-catalog:8080/*"
+      ],
+      "webOrigins": ["http://localhost:8081", "+"],
+      "rootUrl": "http://localhost:8081",
+      "baseUrl": "http://localhost:8081",
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:8081/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-unity-catalog",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "unity-catalog",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

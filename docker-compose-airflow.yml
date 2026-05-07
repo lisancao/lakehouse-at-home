@@ -12,8 +12,32 @@ x-airflow-common:
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     # Airflow 3.x uses API server instead of webserver
-    AIRFLOW__API__PORT: 8085
+    AIRFLOW__API__PORT: 8086
+    AIRFLOW__API__BASE_URL: http://localhost:8086
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://localhost:8086/execution/
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+    # JWT signing secret for the internal worker→api-server token (must match
+    # across all airflow containers). Keep this OUT of the compose literal —
+    # it lives in .env so it isn't committed and can come from a secret store.
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
+    # KeycloakAuthManager replaces the default SimpleAuthManager (random
+    # per-restart admin password, no real RBAC). Realm "lakehouse" lives in
+    # the keycloak service (http://localhost:8087); same realm federates
+    # Unity Catalog so a single user logs into both.
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.keycloak.auth_manager.keycloak_auth_manager.KeycloakAuthManager
+    AIRFLOW__KEYCLOAK_AUTH_MANAGER__SERVER_URL: http://localhost:8087
+    AIRFLOW__KEYCLOAK_AUTH_MANAGER__REALM: lakehouse
+    AIRFLOW__KEYCLOAK_AUTH_MANAGER__CLIENT_ID: airflow
+    AIRFLOW__KEYCLOAK_AUTH_MANAGER__CLIENT_SECRET: ${AIRFLOW_KEYCLOAK_CLIENT_SECRET}
+    # OpenLineage — emit task lineage events to Marquez so SDP-via-Airflow
+    # runs show up in the lineage graph alongside Spark-side jobs.
+    AIRFLOW__OPENLINEAGE__TRANSPORT: '{"type":"http","url":"http://localhost:5001","endpoint":"/api/v1/lineage"}'
+    AIRFLOW__OPENLINEAGE__NAMESPACE: lakehouse
+    AIRFLOW__OPENLINEAGE__DISABLED: 'False'
+    # Point the spark-pipelines CLI at the long-running Connect daemon in
+    # spark-connect-41 (host network, port 15002). The Airflow worker stays
+    # thin: it only sends Connect RPCs, the Connect server runs the pipeline.
+    SPARK_REMOTE: 'sc://localhost:15002'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     # Spark connection settings
     SPARK_MASTER_40: spark://localhost:7077
@@ -71,7 +95,7 @@ services:
     container_name: airflow-webserver
     command: api-server
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8085/api/v2/monitor/health"]
+      test: ["CMD", "curl", "--fail", "http://localhost:8086/api/v2/monitor/health"]
       interval: 30s
       timeout: 10s
       retries: 5

@@ -52,8 +52,74 @@ services:
         tail -f /opt/spark/logs/*
         "
 
+  # Spark 4.1 Spark Connect server. Long-running daemon that listens for
+  # Connect RPCs (e.g. from `spark-pipelines` clients setting SPARK_REMOTE).
+  # Driver runs in this container; executors are allocated from spark-master-41.
+  # This is the canonical Airflow ⇄ Spark 4.1 SDP topology — Airflow workers
+  # stay thin, the cluster does the work.
+  spark-connect-41:
+    # Baked image with Connect CLI deps (pyarrow/pandas>=2.2/pyyaml/grpcio/
+    # zstandard) — the upstream apache/spark:4.1.0 image ships pandas 2.1.4
+    # and is missing the rest, so the Connect-native CLI fails to import.
+    build:
+      context: ./docker/spark-connect
+      dockerfile: Dockerfile
+    image: lakehouse-stack/spark-connect:4.1.0
+    container_name: spark-connect-41
+    network_mode: "host"
+    user: root
+    env_file: .env
+    volumes:
+      - spark-data:/opt/spark-data
+      - sdp-storage:/opt/sdp-storage
+      - ./config/spark:/opt/spark/conf
+      - ./jars:/opt/spark/jars-extra
+      - ./scripts:/scripts
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      - spark-master-41
+      - spark-worker-41
+    command: >
+      bash -c "
+        sleep 10 &&
+        /opt/spark/sbin/start-connect-server.sh --master spark://localhost:7078 --conf spark.connect.grpc.binding.port=15002 &&
+        sleep 5 &&
+        tail -f /opt/spark/logs/*
+        "
+
+  # Spark History Server — post-mortem UI for finished applications. Reads
+  # the event log directory that the Connect server (and any other Spark
+  # job in the cluster) writes to via spark.eventLog.dir=/opt/spark-data/logs.
+  # Without this, every Connect-daemon-driven SDP run is gone the moment
+  # the daemon restarts.
+  spark-history-41:
+    image: apache/spark:4.1.0-scala2.13-java21-python3-r-ubuntu
+    container_name: spark-history-41
+    network_mode: "host"
+    user: root
+    env_file: .env
+    volumes:
+      - spark-data:/opt/spark-data
+      - ./config/spark:/opt/spark/conf
+      - ./jars:/opt/spark/jars-extra
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      - spark-master-41
+    command: >
+      bash -c "
+        mkdir -p /opt/spark-data/logs &&
+        chmod -R g+w /opt/spark-data/logs &&
+        /opt/spark/sbin/start-history-server.sh --properties-file /opt/spark/conf/spark-defaults.conf &&
+        sleep 5 &&
+        tail -f /opt/spark/logs/*.out
+        "
+
 volumes:
   spark-data:
     driver: local
   spark-logs:
+    driver: local
+  sdp-storage:
     driver: local
