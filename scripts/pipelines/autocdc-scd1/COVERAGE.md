@@ -35,6 +35,7 @@ auxiliary state table.
 - **Debezium → Kafka (real Postgres CDC), full envelope** ✅ — a live Debezium Postgres connector (logical replication, `pgoutput`) on a `customers` table; AUTO CDC parses the real envelope (`op` `r`/`c`/`u`/`d`, `before`/`after`, `source.lsn` as `sequence_by`, `op='d'`→`apply_as_deletes` with the key from `before`). Validated across **snapshot** (`r`), **initial streaming** (`u`/`d`/`c`), and **live incremental** DML re-runs (same checkpoint picks up only new offsets). `tests/debezium_source.py`.
 - **Debezium *unwrapped* (ExtractNewRecordState SMT, flattened)** ✅ — the most common production consumption shape: the envelope is flattened to the `after` row + `__op`/`__deleted`/`__lsn` fields; on delete the key is taken from the Kafka message key. Live snapshot + streaming DML. `tests/debezium_unwrap_source.py`.
 - **Debezium *Avro* (Confluent Schema Registry)** ✅ — the production-standard wire format: strip the 5-byte Confluent header + `from_avro` with the registry-fetched value schema; nullable-union fields decode cleanly. Live snapshot + streaming DML. `tests/debezium_avro_source.py`.
+- **Iceberg table (streaming source)** ✅ — *lakehouse-to-lakehouse*: a bronze Iceberg table append-fed with CDC rows, read as a streaming source → SCD1 Iceberg target. `tests/iceberg_source.py`. (Note: Iceberg's `_change_type` *changelog* is **batch-only** in OSS — see §7 — so you stream the appends, not the changelog.)
 
 ### Behavior dimensions (Hadoop-Iceberg) — all pass
 | Behavior | Result |
@@ -142,6 +143,12 @@ All testing here therefore uses the programmatic driver.
   even load on Spark 5.0: `NoSuchMethodError CatalogStorageFormat.copy`; Delta
   master's newest spec is 4.2.0-preview5, which predates AUTO CDC.)
 - **UC OSS as a write target** — read-only Iceberg REST; Delta path moot per above.
+- **Iceberg `_change_type` changelog as a *streaming* source** — batch-only in OSS
+  (`SparkChangelogTable` / `create_changelog_view`); the Iceberg streaming source
+  is append-only, so a true changelog-stream (deletes/updates as change rows)
+  can't feed AUTO CDC directly. The append-stream-of-CDC-rows pattern works (§Sources).
+- **`create_auto_cdc_from_snapshot_flow`** (snapshot-diff CDC) — not in OSS; only
+  `create_auto_cdc_flow` (feed-based) is exported. (Databricks Lakeflow only.)
 - **SCD Type 2** — not in OSS yet.
 - **HMS + S3 warehouse end-to-end** — needs the HMS container configured with S3
   (validated the catalog with a local warehouse instead).
