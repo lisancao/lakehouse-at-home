@@ -126,6 +126,40 @@ def generate_order_events(
     seq = 0
     current_time = order_time
 
+    # Decide whether this order is cancelled, and at which lifecycle stage.
+    # Cancellations skew early (customer changes mind / kitchen rejects) and
+    # terminate the lifecycle with an `order_cancelled` event.
+    cancel_stage = None
+    if random.random() < getattr(config, "cancel_rate", 0.0):
+        cancel_stage = random.choices(
+            ["created", "kitchen", "ready"], weights=[0.5, 0.35, 0.15])[0]
+
+    _CANCEL_REASONS = {
+        "created": ["customer_changed_mind", "payment_failed", "address_error"],
+        "kitchen": ["item_out_of_stock", "kitchen_overloaded", "store_closing"],
+        "ready": ["no_driver_available", "customer_unreachable"],
+    }
+
+    def _cancelled():
+        nonlocal current_time
+        current_time += timedelta(seconds=random.randint(20, 180))
+        events.append(Event(
+            event_id=str(uuid.uuid4()),
+            event_type="order_cancelled",
+            ts=current_time,
+            location_id=location.id,
+            order_id=order_id,
+            sequence=seq,
+            body={
+                "cancelled_by": "customer" if cancel_stage == "created" else "kitchen",
+                "reason": random.choice(_CANCEL_REASONS[cancel_stage]),
+                "refund_total": round(total, 2),
+                "brand_id": brand.id,
+                "stage": cancel_stage,
+            },
+        ))
+        return events
+
     # Event 1: order_created
     events.append(Event(
         event_id=str(uuid.uuid4()),
@@ -144,6 +178,8 @@ def generate_order_events(
         },
     ))
     seq += 1
+    if cancel_stage == "created":
+        return _cancelled()
 
     # Event 2: kitchen_started
     wait_mins = gaussian_time(*st.order_to_kitchen_start)
@@ -162,6 +198,8 @@ def generate_order_events(
         },
     ))
     seq += 1
+    if cancel_stage == "kitchen":
+        return _cancelled()
 
     # Event 3: kitchen_finished
     prep_mins = gaussian_time(*st.kitchen_prep)
@@ -194,6 +232,8 @@ def generate_order_events(
         },
     ))
     seq += 1
+    if cancel_stage == "ready":
+        return _cancelled()
 
     # Event 5: driver_arrived
     driver_wait_mins = gaussian_time(*st.kitchen_to_driver)

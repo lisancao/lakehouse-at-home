@@ -1,0 +1,803 @@
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index ce2eec1..2a7c21b 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -88,7 +88,7 @@ slf4j = "2.0.18"
+ snowflake-jdbc = "3.28.0"
+ spark35 = "3.5.8"
+ spark40 = "4.0.2"
+-spark41 = "4.1.1"
++spark41 = "5.0.0-SNAPSHOT"
+ sqlite-jdbc = "3.53.1.0"
+ testcontainers = "2.0.5"
+ tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
+diff --git a/spark/v4.1/build.gradle b/spark/v4.1/build.gradle
+index e6455fa..1c67f2c 100644
+--- a/spark/v4.1/build.gradle
++++ b/spark/v4.1/build.gradle
+@@ -226,7 +226,10 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
+   dependencies {
+     api project(':iceberg-api')
+     implementation project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
+-    implementation project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}")
++    // Spark 5.0 port: extensions module (Iceberg view DDL SQL) dropped — it depends on the
++    // removed connector View API. AutoCDC SCD1 uses native DSv2 row-level MERGE from the core
++    // module, so the extensions (CALL procedures, view DDL) are not needed for this build.
++    // implementation project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}")
+     implementation project(':iceberg-aws')
+     implementation project(':iceberg-azure')
+     implementation(project(':iceberg-aliyun')) {
+diff --git a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/BaseCatalog.java b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/BaseCatalog.java
+index a0a5b05..5a50e92 100644
+--- a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/BaseCatalog.java
++++ b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/BaseCatalog.java
+@@ -26,18 +26,19 @@ import org.apache.spark.sql.connector.catalog.Identifier;
+ import org.apache.spark.sql.connector.catalog.ProcedureCatalog;
+ import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
+ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+-import org.apache.spark.sql.connector.catalog.ViewCatalog;
+ import org.apache.spark.sql.connector.catalog.procedures.UnboundProcedure;
+ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+ 
++// NOTE: ViewCatalog/SupportsReplaceView intentionally dropped for the Spark 5.0 port.
++// Spark 5.0 removed the connector `View` interface (replaced by ViewInfo) and requires
++// table+view catalogs to implement TableViewCatalog. AutoCDC SCD1 needs only tables +
++// row-level MERGE, so this fork is tables-only.
+ abstract class BaseCatalog
+     implements StagingTableCatalog,
+         ProcedureCatalog,
+         SupportsNamespaces,
+         HasIcebergCatalog,
+-        SupportsFunctions,
+-        ViewCatalog,
+-        SupportsReplaceView {
++        SupportsFunctions {
+   private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
+   private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
+ 
+diff --git a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/RollbackStagedTable.java b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/RollbackStagedTable.java
+index f170927..b424c50 100644
+--- a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/RollbackStagedTable.java
++++ b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/RollbackStagedTable.java
+@@ -18,6 +18,7 @@
+  */
+ package org.apache.iceberg.spark;
+ 
++import org.apache.spark.sql.connector.metric.CustomTaskMetric;
+ import java.util.Map;
+ import java.util.Set;
+ import java.util.function.Consumer;
+@@ -69,6 +70,11 @@ public class RollbackStagedTable
+     this.table = table;
+   }
+ 
++  @Override
++  public CustomTaskMetric[] reportDriverMetrics() {
++    return new CustomTaskMetric[0];
++  }
++
+   @Override
+   public void commitStagedChanges() {
+     // the changes have already been committed to the table at the end of the write
+diff --git a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SparkCatalog.java b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SparkCatalog.java
+index 12eefe6..d7b7aaf 100644
+--- a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SparkCatalog.java
++++ b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SparkCatalog.java
+@@ -58,7 +58,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+ import org.apache.iceberg.spark.actions.SparkActions;
+ import org.apache.iceberg.spark.source.SparkChangelogTable;
+ import org.apache.iceberg.spark.source.SparkTable;
+-import org.apache.iceberg.spark.source.SparkView;
+ import org.apache.iceberg.spark.source.StagedSparkTable;
+ import org.apache.iceberg.util.Pair;
+ import org.apache.iceberg.util.PropertyUtil;
+@@ -79,9 +78,6 @@ import org.apache.spark.sql.connector.catalog.TableChange;
+ import org.apache.spark.sql.connector.catalog.TableChange.ColumnChange;
+ import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
+ import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
+-import org.apache.spark.sql.connector.catalog.View;
+-import org.apache.spark.sql.connector.catalog.ViewChange;
+-import org.apache.spark.sql.connector.catalog.ViewInfo;
+ import org.apache.spark.sql.connector.expressions.Transform;
+ import org.apache.spark.sql.types.StructType;
+ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+@@ -494,193 +490,6 @@ public class SparkCatalog extends BaseCatalog {
+     return false;
+   }
+ 
+-  @Override
+-  public Identifier[] listViews(String... namespace) {
+-    if (null != asViewCatalog) {
+-      return asViewCatalog.listViews(Namespace.of(namespace)).stream()
+-          .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
+-          .toArray(Identifier[]::new);
+-    }
+-
+-    return new Identifier[0];
+-  }
+-
+-  @Override
+-  public boolean viewExists(Identifier ident) {
+-    return asViewCatalog != null && asViewCatalog.viewExists(buildIdentifier(ident));
+-  }
+-
+-  @Override
+-  public View loadView(Identifier ident) throws NoSuchViewException {
+-    if (null != asViewCatalog) {
+-      try {
+-        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
+-        return new SparkView(catalogName, view);
+-      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
+-        throw new NoSuchViewException(ident);
+-      }
+-    }
+-
+-    throw new NoSuchViewException(ident);
+-  }
+-
+-  @Override
+-  public View createView(ViewInfo viewInfo)
+-      throws ViewAlreadyExistsException, NoSuchNamespaceException {
+-    if (null != asViewCatalog && viewInfo != null) {
+-      Identifier ident = viewInfo.ident();
+-      String sql = viewInfo.sql();
+-      String currentCatalog = viewInfo.currentCatalog();
+-      String[] currentNamespace = viewInfo.currentNamespace();
+-      StructType schema = viewInfo.schema();
+-      String[] queryColumnNames = viewInfo.queryColumnNames();
+-      Map<String, String> properties = viewInfo.properties();
+-      Schema icebergSchema = SparkSchemaUtil.convert(schema);
+-
+-      try {
+-        Map<String, String> props =
+-            ImmutableMap.<String, String>builder()
+-                .putAll(Spark3Util.rebuildCreateProperties(properties))
+-                .put(SparkView.QUERY_COLUMN_NAMES, COMMA_JOINER.join(queryColumnNames))
+-                .buildKeepingLast();
+-
+-        org.apache.iceberg.view.View view =
+-            asViewCatalog
+-                .buildView(buildIdentifier(ident))
+-                .withDefaultCatalog(currentCatalog)
+-                .withDefaultNamespace(Namespace.of(currentNamespace))
+-                .withQuery("spark", sql)
+-                .withSchema(icebergSchema)
+-                .withLocation(properties.get("location"))
+-                .withProperties(props)
+-                .create();
+-        return new SparkView(catalogName, view);
+-      } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
+-        throw new NoSuchNamespaceException(currentNamespace);
+-      } catch (AlreadyExistsException e) {
+-        throw new ViewAlreadyExistsException(ident);
+-      }
+-    }
+-
+-    throw new UnsupportedOperationException(
+-        "Creating a view is not supported by catalog: " + catalogName);
+-  }
+-
+-  @Override
+-  public View replaceView(
+-      Identifier ident,
+-      String sql,
+-      String currentCatalog,
+-      String[] currentNamespace,
+-      StructType schema,
+-      String[] queryColumnNames,
+-      String[] columnAliases,
+-      String[] columnComments,
+-      Map<String, String> properties)
+-      throws NoSuchNamespaceException, NoSuchViewException {
+-    if (null != asViewCatalog) {
+-      Schema icebergSchema = SparkSchemaUtil.convert(schema);
+-
+-      try {
+-        Map<String, String> props =
+-            ImmutableMap.<String, String>builder()
+-                .putAll(Spark3Util.rebuildCreateProperties(properties))
+-                .put(SparkView.QUERY_COLUMN_NAMES, COMMA_JOINER.join(queryColumnNames))
+-                .buildKeepingLast();
+-
+-        org.apache.iceberg.view.View view =
+-            asViewCatalog
+-                .buildView(buildIdentifier(ident))
+-                .withDefaultCatalog(currentCatalog)
+-                .withDefaultNamespace(Namespace.of(currentNamespace))
+-                .withQuery("spark", sql)
+-                .withSchema(icebergSchema)
+-                .withLocation(properties.get("location"))
+-                .withProperties(props)
+-                .createOrReplace();
+-        return new SparkView(catalogName, view);
+-      } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
+-        throw new NoSuchNamespaceException(currentNamespace);
+-      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
+-        throw new NoSuchViewException(ident);
+-      }
+-    }
+-
+-    throw new UnsupportedOperationException(
+-        "Replacing a view is not supported by catalog: " + catalogName);
+-  }
+-
+-  @Override
+-  public View alterView(Identifier ident, ViewChange... changes)
+-      throws NoSuchViewException, IllegalArgumentException {
+-    if (null != asViewCatalog) {
+-      try {
+-        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
+-        UpdateViewProperties updateViewProperties = view.updateProperties();
+-
+-        for (ViewChange change : changes) {
+-          if (change instanceof ViewChange.SetProperty) {
+-            ViewChange.SetProperty property = (ViewChange.SetProperty) change;
+-            verifyNonReservedPropertyIsSet(property.property());
+-            updateViewProperties.set(property.property(), property.value());
+-          } else if (change instanceof ViewChange.RemoveProperty) {
+-            ViewChange.RemoveProperty remove = (ViewChange.RemoveProperty) change;
+-            verifyNonReservedPropertyIsUnset(remove.property());
+-            updateViewProperties.remove(remove.property());
+-          }
+-        }
+-
+-        updateViewProperties.commit();
+-
+-        return new SparkView(catalogName, view);
+-      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
+-        throw new NoSuchViewException(ident);
+-      }
+-    }
+-
+-    throw new UnsupportedOperationException(
+-        "Altering a view is not supported by catalog: " + catalogName);
+-  }
+-
+-  private static void verifyNonReservedProperty(String property, String errorMsg) {
+-    if (SparkView.RESERVED_PROPERTIES.contains(property)) {
+-      throw new UnsupportedOperationException(String.format(errorMsg, property));
+-    }
+-  }
+-
+-  private static void verifyNonReservedPropertyIsUnset(String property) {
+-    verifyNonReservedProperty(property, "Cannot unset reserved property: '%s'");
+-  }
+-
+-  private static void verifyNonReservedPropertyIsSet(String property) {
+-    verifyNonReservedProperty(property, "Cannot set reserved property: '%s'");
+-  }
+-
+-  @Override
+-  public boolean dropView(Identifier ident) {
+-    if (null != asViewCatalog) {
+-      return asViewCatalog.dropView(buildIdentifier(ident));
+-    }
+-
+-    return false;
+-  }
+-
+-  @Override
+-  public void renameView(Identifier fromIdentifier, Identifier toIdentifier)
+-      throws NoSuchViewException, ViewAlreadyExistsException {
+-    if (null != asViewCatalog) {
+-      try {
+-        asViewCatalog.renameView(buildIdentifier(fromIdentifier), buildIdentifier(toIdentifier));
+-      } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
+-        throw new NoSuchViewException(fromIdentifier);
+-      } catch (org.apache.iceberg.exceptions.AlreadyExistsException e) {
+-        throw new ViewAlreadyExistsException(toIdentifier);
+-      }
+-    } else {
+-      throw new UnsupportedOperationException(
+-          "Renaming a view is not supported by catalog: " + catalogName);
+-    }
+-  }
+ 
+   @Override
+   public final void initialize(String name, CaseInsensitiveStringMap options) {
+diff --git a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SparkSessionCatalog.java b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SparkSessionCatalog.java
+index 942134e..1a22d99 100644
+--- a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SparkSessionCatalog.java
++++ b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SparkSessionCatalog.java
+@@ -31,10 +31,8 @@ import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
+ import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
+ import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
+ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+-import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
+ import org.apache.spark.sql.catalyst.analysis.NonEmptyNamespaceException;
+ import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
+-import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
+ import org.apache.spark.sql.connector.catalog.CatalogExtension;
+ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+ import org.apache.spark.sql.connector.catalog.FunctionCatalog;
+@@ -46,10 +44,6 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+ import org.apache.spark.sql.connector.catalog.Table;
+ import org.apache.spark.sql.connector.catalog.TableCatalog;
+ import org.apache.spark.sql.connector.catalog.TableChange;
+-import org.apache.spark.sql.connector.catalog.View;
+-import org.apache.spark.sql.connector.catalog.ViewCatalog;
+-import org.apache.spark.sql.connector.catalog.ViewChange;
+-import org.apache.spark.sql.connector.catalog.ViewInfo;
+ import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
+ import org.apache.spark.sql.connector.expressions.Transform;
+ import org.apache.spark.sql.types.StructType;
+@@ -62,14 +56,13 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+  *     SupportsNamespaces.
+  */
+ public class SparkSessionCatalog<
+-        T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
++        T extends TableCatalog & FunctionCatalog & SupportsNamespaces>
+     extends BaseCatalog implements CatalogExtension {
+   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
+ 
+   private String catalogName = null;
+   private TableCatalog icebergCatalog = null;
+   private StagingTableCatalog asStagingCatalog = null;
+-  private ViewCatalog asViewCatalog = null;
+   private T sessionCatalog = null;
+   private boolean createParquetAsIceberg = false;
+   private boolean createAvroAsIceberg = false;
+@@ -332,9 +325,6 @@ public class SparkSessionCatalog<
+       this.asStagingCatalog = (StagingTableCatalog) icebergCatalog;
+     }
+ 
+-    if (icebergCatalog instanceof ViewCatalog) {
+-      this.asViewCatalog = (ViewCatalog) icebergCatalog;
+-    }
+ 
+     this.createParquetAsIceberg = options.getBoolean("parquet-enabled", createParquetAsIceberg);
+     this.createAvroAsIceberg = options.getBoolean("avro-enabled", createAvroAsIceberg);
+@@ -406,10 +396,6 @@ public class SparkSessionCatalog<
+     return ((HasIcebergCatalog) icebergCatalog).icebergCatalog();
+   }
+ 
+-  private boolean isViewCatalog() {
+-    return getSessionCatalog() instanceof ViewCatalog;
+-  }
+-
+   @Override
+   public boolean functionExists(Identifier ident) {
+     return super.functionExists(ident) || getSessionCatalog().functionExists(ident);
+@@ -424,119 +410,4 @@ public class SparkSessionCatalog<
+     }
+   }
+ 
+-  @Override
+-  public Identifier[] listViews(String... namespace) {
+-    try {
+-      if (null != asViewCatalog) {
+-        return asViewCatalog.listViews(namespace);
+-      } else if (isViewCatalog()) {
+-        getSessionCatalog().listViews(namespace);
+-      }
+-    } catch (NoSuchNamespaceException e) {
+-      throw new RuntimeException(e);
+-    }
+-
+-    return new Identifier[0];
+-  }
+-
+-  @Override
+-  public boolean viewExists(Identifier ident) {
+-    return (asViewCatalog != null && asViewCatalog.viewExists(ident))
+-        || (isViewCatalog() && getSessionCatalog().viewExists(ident));
+-  }
+-
+-  @Override
+-  public View loadView(Identifier ident) throws NoSuchViewException {
+-    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+-      return asViewCatalog.loadView(ident);
+-    } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
+-      return getSessionCatalog().loadView(ident);
+-    }
+-
+-    throw new NoSuchViewException(ident);
+-  }
+-
+-  @Override
+-  public View createView(ViewInfo viewInfo)
+-      throws ViewAlreadyExistsException, NoSuchNamespaceException {
+-    if (viewInfo == null) {
+-      return null;
+-    }
+-
+-    if (null != asViewCatalog) {
+-      return asViewCatalog.createView(viewInfo);
+-    } else if (isViewCatalog()) {
+-      return getSessionCatalog().createView(viewInfo);
+-    }
+-
+-    throw new UnsupportedOperationException(
+-        "Creating a view is not supported by catalog: " + catalogName);
+-  }
+-
+-  @Override
+-  public View replaceView(
+-      Identifier ident,
+-      String sql,
+-      String currentCatalog,
+-      String[] currentNamespace,
+-      StructType schema,
+-      String[] queryColumnNames,
+-      String[] columnAliases,
+-      String[] columnComments,
+-      Map<String, String> properties)
+-      throws NoSuchNamespaceException, NoSuchViewException {
+-    if (asViewCatalog instanceof SupportsReplaceView) {
+-      return ((SupportsReplaceView) asViewCatalog)
+-          .replaceView(
+-              ident,
+-              sql,
+-              currentCatalog,
+-              currentNamespace,
+-              schema,
+-              queryColumnNames,
+-              columnAliases,
+-              columnComments,
+-              properties);
+-    }
+-
+-    throw new UnsupportedOperationException(
+-        "Replacing a view is not supported by catalog: " + catalogName);
+-  }
+-
+-  @Override
+-  public View alterView(Identifier ident, ViewChange... changes)
+-      throws NoSuchViewException, IllegalArgumentException {
+-    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+-      return asViewCatalog.alterView(ident, changes);
+-    } else if (isViewCatalog()) {
+-      return getSessionCatalog().alterView(ident, changes);
+-    }
+-
+-    throw new UnsupportedOperationException(
+-        "Altering a view is not supported by catalog: " + catalogName);
+-  }
+-
+-  @Override
+-  public boolean dropView(Identifier ident) {
+-    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+-      return asViewCatalog.dropView(ident);
+-    } else if (isViewCatalog()) {
+-      return getSessionCatalog().dropView(ident);
+-    }
+-
+-    return false;
+-  }
+-
+-  @Override
+-  public void renameView(Identifier fromIdentifier, Identifier toIdentifier)
+-      throws NoSuchViewException, ViewAlreadyExistsException {
+-    if (null != asViewCatalog && asViewCatalog.viewExists(fromIdentifier)) {
+-      asViewCatalog.renameView(fromIdentifier, toIdentifier);
+-    } else if (isViewCatalog()) {
+-      getSessionCatalog().renameView(fromIdentifier, toIdentifier);
+-    } else {
+-      throw new UnsupportedOperationException(
+-          "Renaming a view is not supported by catalog: " + catalogName);
+-    }
+-  }
+ }
+diff --git a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SupportsReplaceView.java b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SupportsReplaceView.java
+deleted file mode 100644
+index 8bdb7b1..0000000
+--- a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/SupportsReplaceView.java
++++ /dev/null
+@@ -1,56 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *   http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing,
+- * software distributed under the License is distributed on an
+- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+- * KIND, either express or implied.  See the License for the
+- * specific language governing permissions and limitations
+- * under the License.
+- */
+-package org.apache.iceberg.spark;
+-
+-import java.util.Map;
+-import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
+-import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
+-import org.apache.spark.sql.connector.catalog.Identifier;
+-import org.apache.spark.sql.connector.catalog.View;
+-import org.apache.spark.sql.connector.catalog.ViewCatalog;
+-import org.apache.spark.sql.types.StructType;
+-
+-public interface SupportsReplaceView extends ViewCatalog {
+-  /**
+-   * Replace a view in the catalog
+-   *
+-   * @param ident a view identifier
+-   * @param sql the SQL text that defines the view
+-   * @param currentCatalog the current catalog
+-   * @param currentNamespace the current namespace
+-   * @param schema the view query output schema
+-   * @param queryColumnNames the query column names
+-   * @param columnAliases the column aliases
+-   * @param columnComments the column comments
+-   * @param properties the view properties
+-   * @throws NoSuchViewException If the view doesn't exist or is a table
+-   * @throws NoSuchNamespaceException If the identifier namespace does not exist (optional)
+-   */
+-  View replaceView(
+-      Identifier ident,
+-      String sql,
+-      String currentCatalog,
+-      String[] currentNamespace,
+-      StructType schema,
+-      String[] queryColumnNames,
+-      String[] columnAliases,
+-      String[] columnComments,
+-      Map<String, String> properties)
+-      throws NoSuchViewException, NoSuchNamespaceException;
+-}
+diff --git a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/data/SparkParquetReaders.java b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/data/SparkParquetReaders.java
+index a19ed80..01031fe 100644
+--- a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/data/SparkParquetReaders.java
++++ b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/data/SparkParquetReaders.java
+@@ -730,6 +730,16 @@ public class SparkParquetReaders {
+     public long getLong(int ordinal) {
+       return (long) values[ordinal];
+     }
++    @Override
++    public org.apache.spark.unsafe.types.TimestampNanosVal getTimestampNTZNanos(int ordinal) {
++      throw new UnsupportedOperationException("Nanosecond timestamps are not supported");
++    }
++
++    @Override
++    public org.apache.spark.unsafe.types.TimestampNanosVal getTimestampLTZNanos(int ordinal) {
++      throw new UnsupportedOperationException("Nanosecond timestamps are not supported");
++    }
++
+ 
+     @Override
+     public float getFloat(int ordinal) {
+diff --git a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/functions/BucketFunction.java b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/functions/BucketFunction.java
+index f31de73..51715c5 100644
+--- a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/functions/BucketFunction.java
++++ b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/functions/BucketFunction.java
+@@ -362,5 +362,10 @@ public class BucketFunction implements UnboundFunction {
+     public Integer reduce(Integer bucketNo) {
+       return bucketNo % this.commonDivisor;
+     }
++
++    @Override
++    public DataType resultType() {
++      return DataTypes.IntegerType;
++    }
+   }
+ }
+diff --git a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/functions/HoursFunction.java b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/functions/HoursFunction.java
+index 3261a90..627158e 100644
+--- a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/functions/HoursFunction.java
++++ b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/functions/HoursFunction.java
+@@ -142,5 +142,10 @@ public class HoursFunction extends UnaryUnboundFunction {
+     public Integer reduce(Integer hour) {
+       return DateTimeUtil.hoursToDays(hour);
+     }
++
++    @Override
++    public DataType resultType() {
++      return DataTypes.IntegerType;
++    }
+   }
+ }
+diff --git a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/source/SparkView.java b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/source/SparkView.java
+deleted file mode 100644
+index 47e5729..0000000
+--- a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/source/SparkView.java
++++ /dev/null
+@@ -1,151 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one
+- * or more contributor license agreements.  See the NOTICE file
+- * distributed with this work for additional information
+- * regarding copyright ownership.  The ASF licenses this file
+- * to you under the Apache License, Version 2.0 (the
+- * "License"); you may not use this file except in compliance
+- * with the License.  You may obtain a copy of the License at
+- *
+- *   http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing,
+- * software distributed under the License is distributed on an
+- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+- * KIND, either express or implied.  See the License for the
+- * specific language governing permissions and limitations
+- * under the License.
+- */
+-package org.apache.iceberg.spark.source;
+-
+-import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
+-
+-import java.util.Map;
+-import java.util.Set;
+-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+-import org.apache.iceberg.spark.SparkSchemaUtil;
+-import org.apache.iceberg.types.Types;
+-import org.apache.iceberg.view.BaseView;
+-import org.apache.iceberg.view.SQLViewRepresentation;
+-import org.apache.iceberg.view.View;
+-import org.apache.iceberg.view.ViewOperations;
+-import org.apache.spark.sql.types.StructType;
+-
+-public class SparkView implements org.apache.spark.sql.connector.catalog.View {
+-
+-  public static final String QUERY_COLUMN_NAMES = "spark.query-column-names";
+-  public static final Set<String> RESERVED_PROPERTIES =
+-      ImmutableSet.of("provider", "location", FORMAT_VERSION, QUERY_COLUMN_NAMES);
+-
+-  private final View icebergView;
+-  private final String catalogName;
+-  private StructType lazySchema = null;
+-
+-  public SparkView(String catalogName, View icebergView) {
+-    this.catalogName = catalogName;
+-    this.icebergView = icebergView;
+-  }
+-
+-  public View view() {
+-    return icebergView;
+-  }
+-
+-  @Override
+-  public String name() {
+-    return icebergView.name();
+-  }
+-
+-  @Override
+-  public String query() {
+-    SQLViewRepresentation sqlRepr = icebergView.sqlFor("spark");
+-    Preconditions.checkState(sqlRepr != null, "Cannot load SQL for view %s", name());
+-    return sqlRepr.sql();
+-  }
+-
+-  @Override
+-  public String currentCatalog() {
+-    return icebergView.currentVersion().defaultCatalog() != null
+-        ? icebergView.currentVersion().defaultCatalog()
+-        : catalogName;
+-  }
+-
+-  @Override
+-  public String[] currentNamespace() {
+-    return icebergView.currentVersion().defaultNamespace().levels();
+-  }
+-
+-  @Override
+-  public StructType schema() {
+-    if (null == lazySchema) {
+-      this.lazySchema = SparkSchemaUtil.convert(icebergView.schema());
+-    }
+-
+-    return lazySchema;
+-  }
+-
+-  @Override
+-  public String[] queryColumnNames() {
+-    return icebergView.properties().containsKey(QUERY_COLUMN_NAMES)
+-        ? icebergView.properties().get(QUERY_COLUMN_NAMES).split(",")
+-        : new String[0];
+-  }
+-
+-  @Override
+-  public String[] columnAliases() {
+-    return icebergView.schema().columns().stream()
+-        .map(Types.NestedField::name)
+-        .toArray(String[]::new);
+-  }
+-
+-  @Override
+-  public String[] columnComments() {
+-    return icebergView.schema().columns().stream()
+-        .map(Types.NestedField::doc)
+-        .toArray(String[]::new);
+-  }
+-
+-  @Override
+-  public Map<String, String> properties() {
+-    ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
+-
+-    propsBuilder.put("provider", "iceberg");
+-    propsBuilder.put("location", icebergView.location());
+-
+-    if (icebergView instanceof BaseView) {
+-      ViewOperations ops = ((BaseView) icebergView).operations();
+-      propsBuilder.put(FORMAT_VERSION, String.valueOf(ops.current().formatVersion()));
+-    }
+-
+-    icebergView.properties().entrySet().stream()
+-        .filter(entry -> !RESERVED_PROPERTIES.contains(entry.getKey()))
+-        .forEach(propsBuilder::put);
+-
+-    return propsBuilder.build();
+-  }
+-
+-  @Override
+-  public String toString() {
+-    return icebergView.toString();
+-  }
+-
+-  @Override
+-  public boolean equals(Object other) {
+-    if (this == other) {
+-      return true;
+-    } else if (other == null || getClass() != other.getClass()) {
+-      return false;
+-    }
+-
+-    // use only name in order to correctly invalidate Spark cache
+-    SparkView that = (SparkView) other;
+-    return icebergView.name().equals(that.icebergView.name());
+-  }
+-
+-  @Override
+-  public int hashCode() {
+-    // use only name in order to correctly invalidate Spark cache
+-    return icebergView.name().hashCode();
+-  }
+-}
+diff --git a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/source/StagedSparkTable.java b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/source/StagedSparkTable.java
+index d78f83a..cb5b12e 100644
+--- a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/source/StagedSparkTable.java
++++ b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/source/StagedSparkTable.java
+@@ -18,6 +18,7 @@
+  */
+ package org.apache.iceberg.spark.source;
+ 
++import org.apache.spark.sql.connector.metric.CustomTaskMetric;
+ import org.apache.iceberg.Transaction;
+ import org.apache.spark.sql.connector.catalog.StagedTable;
+ 
+@@ -29,6 +30,11 @@ public class StagedSparkTable extends SparkTable implements StagedTable {
+     this.transaction = transaction;
+   }
+ 
++  @Override
++  public CustomTaskMetric[] reportDriverMetrics() {
++    return new CustomTaskMetric[0];
++  }
++
+   @Override
+   public void commitStagedChanges() {
+     transaction.commitTransaction();
+diff --git a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/source/StructInternalRow.java b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/source/StructInternalRow.java
+index 074f04d..f11fb8a 100644
+--- a/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/source/StructInternalRow.java
++++ b/spark/v4.1/spark/src/main/java/org/apache/iceberg/spark/source/StructInternalRow.java
+@@ -18,6 +18,7 @@
+  */
+ package org.apache.iceberg.spark.source;
+ 
++import org.apache.spark.unsafe.types.TimestampNanosVal;
+ import java.math.BigDecimal;
+ import java.nio.ByteBuffer;
+ import java.nio.ByteOrder;
+@@ -139,6 +140,16 @@ class StructInternalRow extends InternalRow {
+     }
+   }
+ 
++  @Override
++  public TimestampNanosVal getTimestampNTZNanos(int ordinal) {
++    throw new UnsupportedOperationException("Nanosecond timestamps are not supported");
++  }
++
++  @Override
++  public TimestampNanosVal getTimestampLTZNanos(int ordinal) {
++    throw new UnsupportedOperationException("Nanosecond timestamps are not supported");
++  }
++
+   @Override
+   public long getLong(int ordinal) {
+     Object longVal = struct.get(ordinal, Object.class);

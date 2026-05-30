@@ -1,0 +1,77 @@
+# Apache Spark 5.0.0-SNAPSHOT (master, source-built) + Iceberg runtime ported to
+# Spark 5.0 — for testing AUTO CDC / SCD Type 1, which only exists on Spark master.
+#
+# Prereqs (one-time):
+#   1. Build Spark:  cd ~/spark-src && ./dev/make-distribution.sh --pip --tgz --connect -Phive -Phive-thriftserver
+#   2. Build Iceberg port:  see scripts/pipelines/autocdc-scd1/iceberg-port/README.md
+#   3. Build the image:
+#        mkdir -p /tmp/spark42-build && cp docker/spark42/Dockerfile /tmp/spark42-build/
+#        cp ~/spark-src/spark-5.0.0-SNAPSHOT-bin-lakehouse-cdc.tgz /tmp/spark42-build/spark.tgz
+#        cp ~/iceberg-src/spark/v4.1/spark-runtime/build/libs/iceberg-spark-runtime-4.1_2.13-*.jar /tmp/spark42-build/iceberg-runtime.jar
+#        docker build -t lakehouse/spark:5.0.0-snapshot-cdc /tmp/spark42-build
+#
+# Ports are offset from the 4.0 (7077/8080) and 4.1 (7078/8082) clusters.
+#
+# Run the AUTO CDC -> SCD1 proof against Iceberg:
+#   docker compose -f docker-compose-spark42.yml --profile demo run --rm autocdc-demo
+
+services:
+  spark-master-42:
+    image: lakehouse/spark:5.0.0-snapshot-cdc
+    container_name: spark-master-42
+    network_mode: "host"
+    env_file: .env
+    environment:
+      - SPARK_MASTER_PORT=7079
+      - SPARK_MASTER_WEBUI_PORT=8086
+    volumes:
+      - spark-data-42:/opt/spark-data
+      - ./config/spark:/opt/spark/conf
+      - ./jars:/opt/spark/jars-extra
+      - ./scripts:/scripts
+      - ./data:/data
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    post_start:
+      - command: bash -c "mkdir -p /opt/spark-data/logs; chown -R 0 /opt/spark-data; chmod -R g+w /opt/spark-data"
+        user: root
+    command: >
+      bash -c "
+        /opt/spark/sbin/start-master.sh --host 0.0.0.0 --port 7079 --webui-port 8086 &&
+        tail -f /opt/spark/logs/*
+        "
+
+  spark-worker-42:
+    image: lakehouse/spark:5.0.0-snapshot-cdc
+    container_name: spark-worker-42
+    env_file: .env
+    network_mode: "host"
+    environment:
+      - SPARK_WORKER_WEBUI_PORT=8087
+    volumes:
+      - spark-data-42:/opt/spark-data
+      - ./config/spark:/opt/spark/conf
+      - ./jars:/opt/spark/jars-extra
+      - ./scripts:/scripts
+      - ./data:/data
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    command: >
+      bash -c "
+        sleep 5 &&
+        /opt/spark/sbin/start-worker.sh spark://host.docker.internal:7079 --webui-port 8087 &&
+        tail -f /opt/spark/logs/*
+        "
+
+  # One-shot proof: AUTO CDC -> SCD Type 1 into a local Iceberg table.
+  # Self-contained (local Connect server + Hadoop Iceberg warehouse in the container).
+  autocdc-demo:
+    image: lakehouse/spark:5.0.0-snapshot-cdc
+    profiles: ["demo"]
+    volumes:
+      - ./scripts/pipelines/autocdc-scd1:/scripts/autocdc-scd1
+    command: bash /scripts/autocdc-scd1/run-in-docker.sh
+
+volumes:
+  spark-data-42:
+    driver: local

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -70,6 +70,10 @@ class GeneratorConfig:
     # Volume
     base_orders_per_day: int = 835  # ~75K over 90 days
 
+    # Fraction of orders cancelled mid-lifecycle (emits a terminal
+    # `order_cancelled` event instead of completing). Default 0 = off.
+    cancel_rate: float = 0.0
+
     # Service times
     service_times: ServiceTimes = field(default_factory=ServiceTimes)
 
@@ -117,6 +121,7 @@ class GeneratorConfig:
 
     # Output paths
     output_dir: str = "data"
+    output_name: Optional[str] = None  # override events filename (default orders_{days}d.parquet)
 
     # Kafka settings
     kafka_bootstrap_servers: str = "localhost:9092"
@@ -134,4 +139,5 @@ EVENT_TYPES = [
     "driver_picked_up",
     "driver_ping",
     "delivered",
+    "order_cancelled",
 ]

@@ -33,8 +33,10 @@ def cmd_generate(args):
         days=args.days,
         seed=args.seed,
         base_orders_per_day=args.orders_per_day,
+        cancel_rate=args.cancel_rate,
         chaos=chaos_config,
         output_dir=args.output,
+        output_name=args.name,
     )
 
     generate_dataset(config)
@@ -137,8 +139,12 @@ Examples:
     gen_parser.add_argument("--days", type=int, default=90, help="Number of days to generate")
     gen_parser.add_argument("--seed", type=int, default=42, help="Random seed")
     gen_parser.add_argument("--orders-per-day", type=int, default=835, help="Base orders per day")
+    gen_parser.add_argument("--cancel-rate", type=float, default=0.0,
+                            help="Fraction of orders cancelled mid-lifecycle (emits order_cancelled)")
     gen_parser.add_argument("--start-date", default="2024-01-01", help="Start date (YYYY-MM-DD)")
     gen_parser.add_argument("--output", default="data", help="Output directory")
+    gen_parser.add_argument("--name", default=None,
+                            help="Override events filename (default orders_{days}d.parquet)")
     gen_parser.add_argument("--no-chaos", action="store_true", help="Disable chaos injection")
     gen_parser.add_argument("--chaos-rate", type=float, default=0.05, help="Chaos injection rate")
     gen_parser.set_defaults(func=cmd_generate)

@@ -1,0 +1,26 @@
+# Reference config for the AUTO CDC -> SCD1 proof. run.sh materializes the live
+# copy, substituting __ICEBERG_JAR__ with the ported Iceberg runtime jar.
+# These are STATIC configs; they must be set at Connect-server startup (passed
+# via SPARK_CONF_DIR), not in a pipeline spec's runtime configuration block.
+
+spark.connect.grpc.binding.port            15432
+spark.port.maxRetries                      32
+spark.sql.connect.serverStacktrace.enabled true
+spark.sql.shuffle.partitions               4
+
+# --- Source streaming table: Hive session catalog (spark_catalog) ---
+spark.sql.catalogImplementation            hive
+spark.sql.warehouse.dir                    file:///tmp/autocdc-scd1/warehouse
+spark.hadoop.javax.jdo.option.ConnectionURL  jdbc:derby:;databaseName=/tmp/autocdc-scd1/metastore_db;create=true
+
+# --- AUTO CDC target: Iceberg (row-level MERGE capable) ---
+# AUTO CDC writes via MERGE and maintains a durable aux state table, so a plain
+# parquet target fails (AUTOCDC_TARGET_DOES_NOT_SUPPORT_MERGE). Iceberg works.
+# This jar is the v4.1 module PORTED to Spark 5.0 (see iceberg-port/); the
+# released runtime won't load on Spark 5.0 (removed connector `View` API).
+spark.jars                     __ICEBERG_JAR__
+spark.driver.extraClassPath    __ICEBERG_JAR__
+spark.executor.extraClassPath  __ICEBERG_JAR__
+spark.sql.catalog.ice          org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.ice.type     hadoop
+spark.sql.catalog.ice.warehouse  file:///tmp/autocdc-scd1/iceberg-wh

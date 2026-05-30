@@ -16,7 +16,7 @@ def export_events_to_parquet(config: GeneratorConfig) -> dict:
     output_dir = Path(config.output_dir) / "events"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    output_path = output_dir / f"orders_{config.days}d.parquet"
+    output_path = output_dir / (config.output_name or f"orders_{config.days}d.parquet")
 
     print(f"Generating {config.days} days of order events...")
     print(f"  Start date: {config.start_date}")
