@@ -29,7 +29,10 @@ auxiliary state table.
 | 8 | **Unity Catalog OSS** v0.4.1 — Iceberg REST | — | ❌ FAIL | REST endpoint is **read-only** (no `POST .../tables`) |
 | 9 | **Unity Catalog OSS** / **Delta** | — | ⛔ UNSUPPORTED | Delta doesn't implement `SupportsRowLevelOperations` (see §7) |
 
-**Sources tested:** file-stream (JSON glob) ✅ · **Kafka** (`readStream.format("kafka")`, AvailableNow) ✅ — both drive AUTO CDC correctly.
+**Sources tested:**
+- File-stream (JSON glob) ✅
+- **Kafka** — `readStream.format("kafka")`, AvailableNow, *synthetic* hand-produced feed ✅
+- **Debezium → Kafka (real Postgres CDC)** ✅ — a live Debezium Postgres connector (logical replication, `pgoutput`) on a `customers` table; AUTO CDC parses the real envelope (`op` `r`/`c`/`u`/`d`, `before`/`after`, `source.lsn` as `sequence_by`, `op='d'`→`apply_as_deletes` with the key from `before`). Validated across **snapshot** (`r`), **initial streaming** (`u`/`d`/`c`), and **live incremental** DML re-runs (same checkpoint picks up only new offsets). `tests/debezium_source.py`.
 
 ### Behavior dimensions (Hadoop-Iceberg) — all pass
 | Behavior | Result |
@@ -108,6 +111,10 @@ generator's `--cancel-rate` (not synthetic). Idempotent across re-runs.
   not a bare directory (SDP analysis → `PATH_NOT_FOUND`).
 - **OSS scope:** SCD **Type 1** only; `apply_as_truncates` / ignore-null-update
   lists are declared but not yet honored (SPARK-57092 / SPARK-57093 TODOs).
+- **Hidden metadata column:** AUTO CDC adds a `__spark_autocdc_metadata:
+  struct<deleteSequence, upsertSequence>` column to the target (its per-row
+  sequencing state). It shows up in `SELECT *` — project explicit columns for
+  a clean current-state view.
 
 ---
 
