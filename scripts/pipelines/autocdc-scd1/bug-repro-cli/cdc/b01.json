@@ -1,0 +1,2 @@
+{"id":1,"name":"Alice","city":"NY","op":"UPSERT","seq":1}
+{"id":1,"name":"Alice","city":"Boston","op":"UPSERT","seq":3}
