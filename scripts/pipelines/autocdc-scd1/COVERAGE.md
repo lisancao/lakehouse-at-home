@@ -32,7 +32,8 @@ auxiliary state table.
 **Sources tested:**
 - File-stream (JSON glob) ✅
 - **Kafka** — `readStream.format("kafka")`, AvailableNow, *synthetic* hand-produced feed ✅
-- **Debezium → Kafka (real Postgres CDC)** ✅ — a live Debezium Postgres connector (logical replication, `pgoutput`) on a `customers` table; AUTO CDC parses the real envelope (`op` `r`/`c`/`u`/`d`, `before`/`after`, `source.lsn` as `sequence_by`, `op='d'`→`apply_as_deletes` with the key from `before`). Validated across **snapshot** (`r`), **initial streaming** (`u`/`d`/`c`), and **live incremental** DML re-runs (same checkpoint picks up only new offsets). `tests/debezium_source.py`.
+- **Debezium → Kafka (real Postgres CDC), full envelope** ✅ — a live Debezium Postgres connector (logical replication, `pgoutput`) on a `customers` table; AUTO CDC parses the real envelope (`op` `r`/`c`/`u`/`d`, `before`/`after`, `source.lsn` as `sequence_by`, `op='d'`→`apply_as_deletes` with the key from `before`). Validated across **snapshot** (`r`), **initial streaming** (`u`/`d`/`c`), and **live incremental** DML re-runs (same checkpoint picks up only new offsets). `tests/debezium_source.py`.
+- **Debezium *unwrapped* (ExtractNewRecordState SMT, flattened)** ✅ — the most common production consumption shape: the envelope is flattened to the `after` row + `__op`/`__deleted`/`__lsn` fields; on delete the key is taken from the Kafka message key. Live snapshot + streaming DML. `tests/debezium_unwrap_source.py`.
 
 ### Behavior dimensions (Hadoop-Iceberg) — all pass
 | Behavior | Result |
