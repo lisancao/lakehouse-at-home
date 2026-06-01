@@ -104,28 +104,74 @@ pyspark.errors.exceptions.connect.InvalidPlanInput:
   [INTERNAL_ERROR] This oneOf field in spark.connect.Relation is not set: RELTYPE_NOT_SET  SQLSTATE: XX000
 ```
 
-## Isolation / additional findings
+## Root cause analysis
 
-- **Only the AUTO CDC command fails.** The `@dp.table` source (a `DefineFlow` with
-  `relation_flow_details`) and `create_streaming_table` (a `DefineOutput`) register
-  without error. The failure is specific to the `DefineFlow` carrying
-  `auto_cdc_flow_details`.
-- **Works against a standalone Connect server.** Building the identical graph
-  programmatically and registering it against `sbin/start-connect-server.sh`
-  succeeds, and `start_run` produces the correct SCD1 result. So the API,
-  client-side serialization, and server-side AUTO CDC engine are all fine in
-  isolation — the regression appears to be in the **`spark-pipelines` CLI /
-  embedded `SparkPipelines` server** handling of the AUTO CDC `DefineFlow`.
-- The error mentions an unset `spark.connect.Relation` oneOf (`RELTYPE_NOT_SET`),
-  but `AutoCdcFlowDetails` carries only `Expression` fields (keys, sequence_by,
-  etc.), not a `Relation` — suggesting an empty/default `Relation` is being read
-  on the server side for this command in the embedded path.
-- **Possibly related (secondary):** when the spec's default `catalog` is a custom
-  v2 catalog rather than `spark_catalog`, the CLI's embedded server fails earlier
-  with `Cannot initialize HadoopCatalog because warehousePath must not be null or
-  empty`, even though the catalog's `warehouse` is set via `SPARK_CONF_DIR`. This
-  may indicate the embedded server does not fully pick up catalog configuration —
-  potentially the same root cause (embedded-server config/plan handling).
+The failing command is the AUTO CDC `DefineFlow`. The server-side stack trace
+(captured by flipping `serverStacktrace.enabled` back on in `cli.py`) is:
+
+```
+org.apache.spark.sql.connect.common.InvalidPlanInput$.apply(InvalidPlanInput.scala:46)
+org.apache.spark.sql.connect.planner.InvalidInputErrors$.invalidOneOfField(InvalidInputErrors.scala:130)
+org.apache.spark.sql.connect.planner.SparkConnectPlanner.$anonfun$transformRelation$1(SparkConnectPlanner.scala:237)
+org.apache.spark.sql.connect.service.SessionHolder.usePlanCache(SessionHolder.scala:588)
+org.apache.spark.sql.connect.planner.SparkConnectPlanner.transformRelation(SparkConnectPlanner.scala:146/132)
+org.apache.spark.sql.connect.pipelines.PipelinesHandler$.defineFlow(PipelinesHandler.scala:375)   ← here
+org.apache.spark.sql.connect.pipelines.PipelinesHandler$.handlePipelinesCommand(PipelinesHandler.scala:102)
+```
+
+The decisive observation: `defineFlow` only calls `transformRelation` in **one**
+branch — `case DetailsCase.RELATION_FLOW_DETAILS =>` (`transformRelationFunc(relationFlowDetails.getRelation)`).
+The `AUTO_CDC_FLOW_DETAILS` branch (`buildAutoCdcFlow`) **never** calls
+`transformRelation` (verified by source inspection — it builds an
+`UnresolvedRelation` from the source *name* and transforms only the
+`keys`/`sequence_by`/`apply_as_deletes` **expressions**). So the stack proves the
+server entered the **`RELATION_FLOW_DETAILS` branch** for this command and
+transformed its `relation` sub-field, which is a default/empty `Relation`
+(`RELTYPE_NOT_SET`).
+
+But the client provably sent `auto_cdc_flow_details`, not `relation_flow_details`:
+
+1. **Not stale jars.** `SPARK_PRINT_LAUNCH_COMMAND=1 spark-pipelines run` shows
+   *both* JVM launches (the `SparkPipelines` launcher and the embedded
+   `SparkSubmit … pyspark-shell` Connect server) use `-cp <dist>/jars/*` from the
+   same `06ffa273` build. No old jars on either classpath.
+2. **Not a client dispatch bug.** Runtime instrumentation of
+   `SparkConnectGraphElementRegistry` during the *actual CLI run* shows the source
+   goes through `register_flow` (`type=Flow`) and the AUTO CDC flow goes through
+   **`register_auto_cdc_flow` (`type=AutoCdcFlow`)** — i.e. the client builds
+   `DefineFlow.auto_cdc_flow_details`, the correct field.
+3. **Not a proto field-number skew.** Both the client `pipelines_pb2` and the
+   server `pipelines.proto` agree on the `details` oneof: `relation_flow_details = 7`,
+   `auto_cdc_flow_details = 10`. The client `.py` and the unzipped/`pyspark.zip`
+   copies are byte-identical for `api.py`, the registry, and `pipelines_pb2.py`.
+
+**Conclusion:** the server's `flow.getDetailsCase` returns `RELATION_FLOW_DETAILS`
+(field 7) for a `DefineFlow` the client serialized as `auto_cdc_flow_details`
+(field 10) — the `details` **oneof discriminator is mis-read**, so the (absent)
+`relation` is transformed and throws `RELTYPE_NOT_SET`. This reproduces **only**
+through the `spark-pipelines` CLI's embedded server, never against a standalone
+`start-connect-server.sh` with the *same* dist jars and protos. The only config
+difference in the embedded server is artifact isolation
+(`spark.sql.artifact.isolation.enabled=true` +
+`spark.sql.artifact.isolation.alwaysApplyClassloader=true`, set automatically by
+the embedded `pyspark-shell` driver) combined with the plan cache (`usePlanCache`
+is in the failing stack). Enabling those confs *alone* on a standalone server did
+**not** reproduce it, so the trigger is the embedded path's specific
+classloader/plan-cache interaction during oneof decoding — not the wire bytes.
+
+### Why a coworker may not reproduce it
+The bug needs the **exact** `spark-pipelines run` embedded-server path. Any
+hand-built standalone Connect server (even one started with the artifact-isolation
+confs, or hosting the Connect plugin in a `pyspark-shell` driver) does **not**
+reproduce it. Reproduce by running the committed `bug-repro-cli/` verbatim via
+`spark-pipelines run --spec spark-pipeline.yml`, not a programmatic driver.
+
+### Secondary (possibly same root cause)
+When the spec's default `catalog` is a custom v2 catalog rather than
+`spark_catalog`, the CLI's embedded server fails earlier with `Cannot initialize
+HadoopCatalog because warehousePath must not be null or empty`, even though the
+catalog's `warehouse` is set via `SPARK_CONF_DIR` — consistent with the embedded
+server not fully honoring config in the same path.
 
 ## Workaround
 
@@ -151,8 +197,19 @@ handle_pipeline_events(start_run(spark, gid, full_refresh=None, full_refresh_all
 ## Pointers for triage
 
 - Client: `pyspark/pipelines/spark_connect_graph_element_registry.py::register_auto_cdc_flow`
-  builds `PipelineCommand.DefineFlow` with `auto_cdc_flow_details`.
-- Server: `org.apache.spark.sql.connect.pipelines.PipelinesHandler::defineFlow` →
-  `buildAutoCdcFlow` (branch `DetailsCase.AUTO_CDC_FLOW_DETAILS`).
-- Compare the embedded `org.apache.spark.deploy.SparkPipelines` server path vs a
-  standard Connect server for how the `DefineFlow` oneOf is decoded.
+  builds `PipelineCommand.DefineFlow` with `auto_cdc_flow_details` (field 10) —
+  confirmed at runtime under the CLI.
+- Server: `org.apache.spark.sql.connect.pipelines.PipelinesHandler::defineFlow`
+  (`PipelinesHandler.scala:382` `flow.getDetailsCase match`). The crash is at the
+  `RELATION_FLOW_DETAILS` branch (`transformRelationFunc(relationFlowDetails.getRelation)`),
+  so `getDetailsCase` is returning the wrong oneof case for this command.
+- **Next instrumentation (server-side):** in the *running embedded server*, log
+  `flow.getDetailsCase` and the raw `DefineFlow` bytes at the top of `defineFlow`,
+  and confirm whether the oneof is decoded as `RELATION_FLOW_DETAILS` vs
+  `AUTO_CDC_FLOW_DETAILS`. The mis-decode appears only under the embedded server's
+  artifact-isolation classloader + plan cache (`usePlanCache` in the stack), so the
+  suspect is how the protobuf-generated `DefineFlow`/oneof classes resolve under the
+  isolated classloader, or a poisoned `usePlanCache` entry — not the wire bytes,
+  which are identical to the standalone (passing) path.
+- Reproduce diagnostics with `serverStacktrace.enabled=true` (the CLI hard-codes it
+  to `false` in `cli.py` ~line 322; flip it to capture the server stack above).
