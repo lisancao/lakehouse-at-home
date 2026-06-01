@@ -106,10 +106,13 @@ Real `order_cancelled` events (the delete vector) come from the generator's new
      `SharedTablesInMemoryRowLevelOperationTableCatalog` test connector. Run with
      `AUTOCDC_TARGET=cat.cdc.scd1_customers` and a catalog config registering
      `cat` + the catalyst/core `test-classes` on the classpath.
-2. **The `spark-pipelines` CLI does not work for AUTO CDC on this build** — its
-   embedded Connect server fails serializing the command (`RELTYPE_NOT_SET`).
-   Driving registration + `start_run` against a *standalone* Connect server works
-   (that's what `autocdc_scd1_proof.py` does).
+2. **The `spark-pipelines` CLI works for AUTO CDC** against a Spark 5.0 server +
+   MERGE-capable target. Watch the Connect endpoint: the client connects to the
+   default `sc://localhost:15002`, so make sure a *5.0* server owns that port — an
+   older server on it (e.g. a leftover 4.1 Connect server) rejects the command
+   with `RELTYPE_NOT_SET`. The scripts here drive registration + `start_run`
+   against a *standalone* Connect server (`autocdc_scd1_proof.py`) mainly to pin
+   the exact server version + port.
 3. **Streaming file source needs a glob** (`dir/*.json`); a bare directory →
    `[PATH_NOT_FOUND]` during SDP analysis.
 4. **Static configs** (warehouse, metastore, Connect port, catalogs, classpath)

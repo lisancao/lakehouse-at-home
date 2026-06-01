@@ -30,6 +30,6 @@ python tests/stress_scd1.py        # or behavior_dimensions.py
 (no external services). `kafka_source.py` additionally needs the Kafka connector
 jars on the server classpath and a populated `autocdc-cdc` topic (see COVERAGE).
 
-> The `spark-pipelines` CLI can't run AUTO CDC on this build (see
-> `../BUG-spark-pipelines-autocdc-RELTYPE_NOT_SET.md`), so these drive the graph
-> programmatically (`create_dataflow_graph` + `start_run`).
+> These drive the graph programmatically (`create_dataflow_graph` + `start_run`)
+> against a standalone Connect server to pin the exact server version + port (see
+> COVERAGE §6 for the `spark-pipelines` CLI path).

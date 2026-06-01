@@ -1,7 +1,0 @@
-name: autocdc_cli_repro
-catalog: spark_catalog
-database: default
-storage: file:///tmp/cli_repro/storage
-libraries:
-  - glob:
-      include: pipeline.py

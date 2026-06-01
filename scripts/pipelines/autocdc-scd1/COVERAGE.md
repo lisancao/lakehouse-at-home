@@ -121,15 +121,24 @@ generator's `--cancel-rate` (not synthetic). Idempotent across re-runs.
 
 ---
 
-## 6. Known issue (filed separately)
+## 6. `spark-pipelines` CLI
 
-`spark-pipelines run` (the CLI) fails to register an AUTO CDC flow:
-`InvalidPlanInput: [INTERNAL_ERROR] … RELTYPE_NOT_SET`. The `@dp.table` source and
-`create_streaming_table` register fine; only the AUTO CDC `DefineFlow` fails. The
-identical graph works when driven programmatically (`create_dataflow_graph` +
-`start_run`) against a standalone Connect server — isolated to the CLI's embedded
-server. See `BUG-spark-pipelines-autocdc-RELTYPE_NOT_SET.md` + `bug-repro-cli/`.
-All testing here therefore uses the programmatic driver.
+`spark-pipelines run` executes AUTO CDC correctly on this 5.0 build against a
+MERGE-capable (Iceberg) target — registration, `start_run`, and the SCD1 result
+all succeed end-to-end. Two operational things to get right:
+
+- **Connect endpoint / server version.** The Connect client connects to the
+  default `sc://localhost:15002`. Make sure a matching **Spark 5.0** server owns
+  that port. An *older* server squatting on it (e.g. a leftover 4.1 Connect
+  server, which predates AUTO CDC) will reject the command with
+  `InvalidPlanInput … RELTYPE_NOT_SET` — that error means "wrong server version on
+  the port," not a defect in the pipeline.
+- **Target catalog.** Must be MERGE-capable (see §5). A default parquet
+  `spark_catalog` target fails with `AUTOCDC_TARGET_DOES_NOT_SUPPORT_MERGE`; point
+  the spec's `catalog` at the Iceberg catalog and pre-create the namespace.
+
+The programmatic driver (`create_dataflow_graph` + `start_run`) used by the other
+scripts here is simply a convenient way to pin the exact server version + port.
 
 ---
 

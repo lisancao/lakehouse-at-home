@@ -4,11 +4,12 @@ Requires a SOURCE BUILD of Apache Spark master (currently 5.0.0-SNAPSHOT).
 `create_auto_cdc_flow` / `stored_as_scd_type` landed AFTER the 4.2.0-preview5
 cut, so no released artifact (preview5 image, pyspark 4.2.0.dev5) contains it.
 
-Why a driver script instead of the `spark-pipelines` CLI:
-    The CLI spawns an *embedded* Connect server and, on this build, fails to
-    serialize the AutoCDC command ([INTERNAL_ERROR] RELTYPE_NOT_SET). Driving
-    registration + start_run directly against a *standalone* Connect server
-    works. See README.md for the full investigation.
+Why a driver script (vs the `spark-pipelines` CLI):
+    Both work. This script drives registration + start_run directly against a
+    *standalone* Connect server so we pin the exact server version + port. (The
+    CLI connects to the default sc://localhost:15002; if an older server happens
+    to own that port it rejects the AutoCDC command with RELTYPE_NOT_SET, so an
+    explicit standalone server avoids that ambiguity.) See README.md.
 
 What it proves (the classic SCD1 cases):
     - id=1  INSERT NY (seq1) -> UPDATE Boston (seq3) -> stale UPDATE Chicago (seq2)
