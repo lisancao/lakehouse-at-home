@@ -1,0 +1,31 @@
+# Kafka for the Spark 4.3 Real-Time Mode experiments.
+#
+# Same images and settings as ../../docker-compose-kafka.yml, but with distinct
+# container names so it can run when another project already owns stopped
+# "kafka"/"zookeeper" containers. Host networking, ports 2181 and 9092.
+#
+#   docker compose -p rtm43 -f scripts/rtm/docker-compose-kafka-rtm.yml up -d
+#   docker compose -p rtm43 -f scripts/rtm/docker-compose-kafka-rtm.yml down -v
+services:
+  zookeeper-rtm:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper-rtm
+    network_mode: "host"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      KAFKA_OPTS: "-Dzookeeper.admin.serverPort=9999"
+
+  kafka-rtm:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-rtm
+    depends_on:
+      - zookeeper-rtm
+    network_mode: "host"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: localhost:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1

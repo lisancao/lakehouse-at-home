@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import pandas as pd
 import pyarrow.parquet as pq
 from kafka import KafkaProducer
 
@@ -77,7 +78,9 @@ class StreamingProducer:
                 "event_type": row["event_type"],
                 "ts": row["ts"],
                 "ts_seconds": int(row["ts_seconds"]),
-                "location_id": int(row["location_id"]) if row["location_id"] else None,
+                "location_id": (
+                    int(row["location_id"]) if pd.notna(row["location_id"]) else None
+                ),
                 "order_id": row["order_id"],
                 "sequence": int(row["sequence"]),
                 "body": row["body"],
