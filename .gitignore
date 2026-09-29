@@ -91,3 +91,11 @@ terraform-databricks/terraform.tfvars
 
 # Claude Code local agent configs (per-machine)
 .claude/agents/
+.claude/agent-memory/
+.claude/scheduled_tasks.lock
+
+# Benchmark run output
+benchmarks/results/
+
+# Editor/manual backups
+*.bak-*
