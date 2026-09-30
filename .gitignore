@@ -63,6 +63,7 @@ mlartifacts/
 # Benchmark outputs (keep harness tracked, outputs local)
 benchmarks/results/*.json
 benchmarks/results/pipelines/*.json
+benchmarks/results/pipelines/*.md
 !benchmarks/results/.gitkeep
 
 # OS
@@ -91,3 +92,8 @@ terraform-databricks/terraform.tfvars
 
 # Claude Code local agent configs (per-machine)
 .claude/agents/
+.claude/agent-memory/
+.claude/scheduled_tasks.lock
+
+# Editor/manual backups
+*.bak-*
