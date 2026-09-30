@@ -140,6 +140,73 @@ docker exec airflow-webserver airflow dags trigger iceberg_compact_on_demand \
   --conf '{"table": "iceberg.silver.orders_clean", "target_size_mb": 256}'
 ```
 
+## Spark Declarative Pipelines (SDP) via `SparkPipelinesOperator`
+
+For SDP pipelines defined by a `spark-pipeline.yml` spec, use the dedicated `SparkPipelinesOperator` instead of `SparkSubmitOperator` + a manual `spark-pipelines` CLI invocation. The operator was added to `apache-airflow-providers-apache-spark` upstream (Apache Airflow PR #61681, March 2026).
+
+This repo ships a vendored copy at [`dags/spark_pipelines_operator.py`](../../dags/spark_pipelines_operator.py). The vendoring removes coupling between the Dag code and a specific provider version, so Dags run on any provider release that includes `SparkSubmitHook`. To switch back to upstream once the pinned provider in [`docker/airflow/Dockerfile`](../../docker/airflow/Dockerfile) carries the operator, change the import line in each Dag.
+
+> **Differences from upstream.** The vendored copy runs pyspark's pipelines CLI directly rather than going through `spark-submit` (see below for why). `conn_id`, `conf`, and the executor/driver resource arguments are accepted for signature parity but are not applied: put Spark settings in the spec's `configuration:` block, and point at a Spark Connect server with `SPARK_REMOTE` (worker env or `env_vars`). It adds `pipeline_root`, `full_refresh`, and `refresh`.
+
+### Basic usage
+
+```python
+from airflow.sdk import DAG
+from datetime import datetime
+
+try:
+    from airflow.providers.apache.spark.operators.spark_pipelines import SparkPipelinesOperator
+except ImportError:
+    from spark_pipelines_operator import SparkPipelinesOperator
+
+with DAG(
+    dag_id="my_sdp_pipeline",
+    schedule="@daily",
+    start_date=datetime(2026, 4, 1),
+    catchup=False,
+):
+    SparkPipelinesOperator(
+        task_id="run_pipeline",
+        pipeline_spec="/scripts/pipelines/spark-pipeline.yml",
+        pipeline_command="run",          # or "dry-run" for validation
+        env_vars={"SPARK_REMOTE": "sc://localhost:15002"},
+    )
+```
+
+### Why use `SparkPipelinesOperator` instead of `SparkSubmitOperator`
+
+`SparkSubmitOperator` builds a `spark-submit` command. SDP pipelines do not run via `spark-submit`. They run via the `spark-pipelines` CLI, which dispatches through Spark Connect when `SPARK_REMOTE` is set and through `spark-submit` otherwise. `SparkPipelinesOperator` invokes the right CLI for both modes and adds:
+
+- Pipeline-level templating (`pipeline_spec`, `pipeline_root`, `pipeline_command`, `env_vars` are all `template_fields`)
+- Type-safe validation of `pipeline_command` (`"run"` or `"dry-run"`)
+- Cleaner logs (the operator labels the invocation with the resolved `SPARK_REMOTE`)
+- Direct dispatch to the `pyspark.pipelines.cli` Python module to bypass the `spark-pipelines` shell wrapper, which (in Spark 4.1) routes through the JVM `SparkSubmit` path even when `SPARK_REMOTE` is set, causing it to bind a duplicate Spark Connect server on port 15002 and reject the `--master` / `--deploy-mode` flags
+
+If you have an existing Dag using `SparkSubmitOperator` to launch `spark-pipelines run`, the migration is mechanical:
+
+```python
+# Before
+SparkSubmitOperator(
+    task_id="run_pipeline",
+    application="/usr/local/bin/spark-pipelines",
+    application_args=["run", "--spec", "/scripts/pipelines/spark-pipeline.yml"],
+    conn_id="spark_default",
+)
+
+# After
+SparkPipelinesOperator(
+    task_id="run_pipeline",
+    pipeline_spec="/scripts/pipelines/spark-pipeline.yml",
+    pipeline_command="run",
+)
+```
+
+### Reference
+
+- Apache Airflow operator howto: <https://airflow.apache.org/docs/apache-airflow-providers-apache-spark/stable/operators.html#sparkpipelinesoperator>
+- Spark Declarative Pipelines programming guide: <https://spark.apache.org/docs/latest/declarative-pipelines-programming-guide.html>
+- Vendored operator source: [`dags/spark_pipelines_operator.py`](../../dags/spark_pipelines_operator.py)
+
 ## CLI Commands
 
 ```bash
